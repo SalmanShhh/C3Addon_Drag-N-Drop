@@ -79,45 +79,16 @@ export const info = {
 };
 
 export const properties = [
-  /*
+  // Keep the panel simple: this behavior exposes one startup toggle.
   {
-    type: PROPERTY_TYPE.INTEGER,
-    id: "property_id",
+    type: PROPERTY_TYPE.CHECK,
+    id: "enabled",
     options: {
-      initialValue: 0,
+      initialValue: true,
       interpolatable: false,
-
-      // minValue: 0, // omit to disable
-      // maxValue: 100, // omit to disable
-
-      // for type combo only
-      // items: [
-      //   {itemId1: "item name1" },
-      //   {itemId2: "item name2" },
-      // ],
-
-      // dragSpeedMultiplier: 1, // omit to disable
-
-      // for type object only
-      // allowedPluginIds: ["Sprite", "<world>"],
-
-      // for type link only
-      // linkCallback: function(instOrObj) {},
-      // linkText: "Link Text",
-      // callbackType:
-      //   "for-each-instance"
-      //   "once-for-type"
-
-      // for type info only
-      // infoCallback: function(inst) {},
-
-      // for type projectfile only (plugins only, Addon SDK v2, r426+)
-      // A dropdown list from which any project file in the project can be chosen.
-      // The property value at runtime is a relative path to fetch the project file from.
-      // filter: ".txt", // optional: filter list by file extension (e.g., ".txt" to only list .txt files)
     },
-    name: "Property Name",
-    desc: "Property Description",
-  }
-  */
+    name: "Enabled",
+    desc: "Whether the behavior starts enabled.",
+  },
+  
 ];

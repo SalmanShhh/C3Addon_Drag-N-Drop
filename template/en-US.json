@@ -1,117 +1,301 @@
 {
   "languageTag": "en-US",
-  "fileDescription": "Strings for sample_addon.",
+  "fileDescription": "Strings for salmanshh_dragndrop.",
   "text": {
-    "plugins": {
-      "sample_addon": {
-        "name": "Sample Addon",
-        "description": "Description",
+    "behaviors": {
+      "salmanshh_dragndrop": {
+        "name": "DragNDrop",
+        "description": "drop-in replacement for Construct 3's built-in Drag & Drop behaviour, designed for developers who need full control over how, when, and by what an object is grabbed and released. Where the built-in behaviour is permanently wired to the mouse or touch, 'DragNDrop' decouples every stage of the drag lifecycle from the input device. Grab and release can be triggered entirely through events",
         "help-url": "https://www.construct.net",
         "aceCategories": {
-          "Ace_Folders_In_Category_Folder": "Ace_Folders_In_Category_Folder",
-          "Aces_Files_In_Category_Folder": "Aces_Files_In_Category_Folder",
-          "Aces_In_Single_File": "Aces_In_Single_File"
+          "DragNDrop": "DragNDrop"
         },
-        "properties": {},
+        "properties": {
+          "enabled": {
+            "name": "Enabled",
+            "desc": "Whether the behavior starts enabled."
+          }
+        },
         "actions": {
-          "ActionCombo": {
-            "list-name": "Sample Action Combo",
-            "display-text": "Sample Action Combo {0}",
-            "description": "This is a sample action",
+          "CancelGrab": {
+            "list-name": "Cancel grab",
+            "display-text": "Cancel the current grab",
+            "description": "Ends the current drag without computing throw velocity.",
+            "params": {}
+          },
+          "ClearThrowVelocity": {
+            "list-name": "Clear throw velocity",
+            "display-text": "Clear throw velocity",
+            "description": "Removes any manual throw velocity override.",
+            "params": {}
+          },
+          "ForceGrab": {
+            "list-name": "Force grab",
+            "display-text": "Force grab at {0}, {1} using {2}",
+            "description": "Cancels any current drag and starts a new one immediately.",
             "params": {
-              "param1": {
-                "name": "Param1",
-                "desc": "This is a sample param",
+              "anchorX": {
+                "name": "Anchor X",
+                "desc": "World-space X position of the anchor."
+              },
+              "anchorY": {
+                "name": "Anchor Y",
+                "desc": "World-space Y position of the anchor."
+              },
+              "grabMode": {
+                "name": "Grab mode",
+                "desc": "Keep the existing offset or snap to the anchor center.",
                 "items": {
-                  "test": "test",
-                  "test2": "test2"
+                  "0": "Keep offset",
+                  "1": "Snap to anchor"
                 }
               }
             }
           },
-          "Action": {
-            "list-name": "Sample Action",
-            "display-text": "Sample Action {0}",
-            "description": "This is a sample action",
+          "Grab": {
+            "list-name": "Grab",
+            "display-text": "Grab at {0}, {1} using {2}",
+            "description": "Starts a drag using the provided anchor and grab mode.",
             "params": {
-              "param1": {
-                "name": "Param1",
-                "desc": "This is a sample param"
+              "anchorX": {
+                "name": "Anchor X",
+                "desc": "World-space X position of the anchor."
+              },
+              "anchorY": {
+                "name": "Anchor Y",
+                "desc": "World-space Y position of the anchor."
+              },
+              "grabMode": {
+                "name": "Grab mode",
+                "desc": "Keep the existing offset or snap to the anchor center.",
+                "items": {
+                  "0": "Keep offset",
+                  "1": "Snap to anchor"
+                }
               }
             }
           },
-          "AsyncAction": {
-            "list-name": "Sample Action Async",
-            "display-text": "Sample Action Async",
-            "description": "This is a sample action",
+          "Release": {
+            "list-name": "Release",
+            "display-text": "Release the dragged object",
+            "description": "Ends the current drag and finalizes throw velocity.",
             "params": {}
           },
-          "SampleAction": {
-            "list-name": "Sample Action",
-            "display-text": "Sample Action {0}",
-            "description": "This is a sample action",
+          "SetAnchor": {
+            "list-name": "Set anchor",
+            "display-text": "Set anchor to {0}, {1}",
+            "description": "Updates the world-space anchor that the dragged object follows.",
             "params": {
-              "param1": {
-                "name": "Param1",
-                "desc": "This is a sample param"
+              "x": {
+                "name": "X",
+                "desc": "World-space X anchor position."
+              },
+              "y": {
+                "name": "Y",
+                "desc": "World-space Y anchor position."
+              }
+            }
+          },
+          "SetAnchorToObject": {
+            "list-name": "Set anchor to object",
+            "display-text": "Set anchor to object {0}",
+            "description": "Uses the center of the selected object as the anchor point.",
+            "params": {
+              "object": {
+                "name": "Object",
+                "desc": "Object instance to use as the anchor source."
+              }
+            }
+          },
+          "SetAxisLock": {
+            "list-name": "Set axis lock",
+            "display-text": "Set axis lock to {0}",
+            "description": "Constrains the dragged object to a single axis.",
+            "params": {
+              "axis": {
+                "name": "Axis",
+                "desc": "Choose the lock mode.",
+                "items": {
+                  "0": "None",
+                  "1": "Horizontal",
+                  "2": "Vertical"
+                }
+              }
+            }
+          },
+          "SetDistanceClamp": {
+            "list-name": "Set distance clamp",
+            "display-text": "Set distance clamp to {0}",
+            "description": "Limits how far the object can travel from its grab origin.",
+            "params": {
+              "radius": {
+                "name": "Radius",
+                "desc": "Maximum travel distance in pixels. 0 disables the clamp."
+              }
+            }
+          },
+          "SetEnabled": {
+            "list-name": "Set enabled",
+            "display-text": "Set enabled to {0}",
+            "description": "Enables or disables the drag behavior.",
+            "params": {
+              "enabled": {
+                "name": "Enabled",
+                "desc": "Whether the behavior should be enabled."
+              }
+            }
+          },
+          "SetFollowSpeed": {
+            "list-name": "Set follow speed",
+            "display-text": "Set follow speed to {0}",
+            "description": "Sets the lerp speed for following the anchor.",
+            "params": {
+              "speed": {
+                "name": "Speed",
+                "desc": "Pixels per second. 0 means instant snap."
+              }
+            }
+          },
+          "SetGrabOffset": {
+            "list-name": "Set grab offset",
+            "display-text": "Set grab offset to {0}, {1}",
+            "description": "Overrides the offset used while the object is held.",
+            "params": {
+              "offsetX": {
+                "name": "Offset X",
+                "desc": "Horizontal offset from the anchor."
+              },
+              "offsetY": {
+                "name": "Offset Y",
+                "desc": "Vertical offset from the anchor."
+              }
+            }
+          },
+          "SetThrowVelocity": {
+            "list-name": "Set throw velocity",
+            "display-text": "Set throw velocity to {0}, {1}",
+            "description": "Overrides the velocity that is reported on release.",
+            "params": {
+              "velX": {
+                "name": "Velocity X",
+                "desc": "X component of the throw velocity."
+              },
+              "velY": {
+                "name": "Velocity Y",
+                "desc": "Y component of the throw velocity."
               }
             }
           }
         },
         "conditions": {
-          "ConditionCombo": {
-            "list-name": "Sample Condition",
-            "display-text": "Sample Condition {0}",
-            "description": "This is a sample condition",
-            "params": {
-              "param1": {
-                "name": "Param1",
-                "desc": "This is a sample param",
-                "items": {
-                  "TRUE": "True",
-                  "FALSE": "False"
-                }
-              }
-            }
-          },
-          "Condition": {
-            "list-name": "Sample Condition",
-            "display-text": "Sample Condition {0}",
-            "description": "This is a sample condition",
-            "params": {
-              "param1": {
-                "name": "Param1",
-                "desc": "This is a sample param"
-              }
-            }
-          },
-          "Trigger": {
-            "list-name": "Sample Trigger",
-            "display-text": "Sample Trigger",
-            "description": "This is a sample trigger",
+          "IsAtDistanceLimit": {
+            "list-name": "Is at distance limit",
+            "display-text": "Is at distance limit",
+            "description": "True when the held object is at or beyond the clamp radius.",
             "params": {}
           },
-          "SampleCondition": {
-            "list-name": "Sample Condition",
-            "display-text": "Sample Condition",
-            "description": "This is a sample condition",
+          "IsEnabled": {
+            "list-name": "Is enabled",
+            "display-text": "Is enabled",
+            "description": "True while the behavior is active.",
+            "params": {}
+          },
+          "IsHeld": {
+            "list-name": "Is held",
+            "display-text": "Is held",
+            "description": "True while the object is currently being dragged.",
+            "params": {}
+          },
+          "OnDistanceLimitReached": {
+            "list-name": "On distance limit reached",
+            "display-text": "On distance limit reached",
+            "description": "Triggered when the held object hits its clamp limit.",
+            "params": {}
+          },
+          "OnGrabbed": {
+            "list-name": "On grabbed",
+            "display-text": "On grabbed",
+            "description": "Triggered when a drag starts.",
+            "params": {}
+          },
+          "OnGrabCancelled": {
+            "list-name": "On grab cancelled",
+            "display-text": "On grab cancelled",
+            "description": "Triggered when drag is cancelled without release.",
+            "params": {}
+          },
+          "OnReleased": {
+            "list-name": "On released",
+            "display-text": "On released",
+            "description": "Triggered when the current drag ends.",
+            "params": {}
+          },
+          "WasThrown": {
+            "list-name": "Was thrown",
+            "display-text": "Was thrown",
+            "description": "True when the last release produced non-zero throw velocity.",
             "params": {}
           }
         },
         "expressions": {
-          "Expression2": {
-            "translated-name": "Expression2",
-            "description": "Sample Expression",
+          "AnchorX": {
+            "translated-name": "AnchorX",
+            "description": "Current world-space X of the anchor point.",
             "params": {}
           },
-          "Expression": {
-            "translated-name": "Expression",
-            "description": "Sample Expression",
+          "AnchorY": {
+            "translated-name": "AnchorY",
+            "description": "Current world-space Y of the anchor point.",
             "params": {}
           },
-          "SampleExpression": {
-            "translated-name": "SampleExpression",
-            "description": "This is a sample expression",
+          "ClampRadius": {
+            "translated-name": "ClampRadius",
+            "description": "Current distance clamp radius, or 0 if unconstrained.",
+            "params": {}
+          },
+          "DistanceFromOrigin": {
+            "translated-name": "DistanceFromOrigin",
+            "description": "Distance from the grab origin to the object's current position.",
+            "params": {}
+          },
+          "GrabOffsetX": {
+            "translated-name": "GrabOffsetX",
+            "description": "Current X component of the grab offset vector.",
+            "params": {}
+          },
+          "GrabOffsetY": {
+            "translated-name": "GrabOffsetY",
+            "description": "Current Y component of the grab offset vector.",
+            "params": {}
+          },
+          "GrabOriginX": {
+            "translated-name": "GrabOriginX",
+            "description": "World-space X where the object was when grabbing started.",
+            "params": {}
+          },
+          "GrabOriginY": {
+            "translated-name": "GrabOriginY",
+            "description": "World-space Y where the object was when grabbing started.",
+            "params": {}
+          },
+          "IsHeldValue": {
+            "translated-name": "IsHeldValue",
+            "description": "Returns 1 when the object is currently held, otherwise 0.",
+            "params": {}
+          },
+          "ThrowSpeed": {
+            "translated-name": "ThrowSpeed",
+            "description": "Magnitude of the final release velocity.",
+            "params": {}
+          },
+          "ThrowVelX": {
+            "translated-name": "ThrowVelX",
+            "description": "X component of the final release velocity.",
+            "params": {}
+          },
+          "ThrowVelY": {
+            "translated-name": "ThrowVelY",
+            "description": "Y component of the final release velocity.",
             "params": {}
           }
         }
