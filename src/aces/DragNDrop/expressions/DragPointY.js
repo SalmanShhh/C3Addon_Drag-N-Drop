@@ -1,6 +1,6 @@
 export const config = {
   returnType: "number",
-  description: "X component of the final release velocity.",
+  description: "Current world-space Y of the drag point.",
   highlight: false,
   isDeprecated: false,
   params: [],
@@ -9,5 +9,5 @@ export const config = {
 export const expose = false;
 
 export default function () {
-  return this._throwVelX;
+  return this._dragPointY;
 }

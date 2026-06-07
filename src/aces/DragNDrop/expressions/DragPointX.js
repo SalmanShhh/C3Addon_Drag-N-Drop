@@ -1,6 +1,6 @@
 export const config = {
   returnType: "number",
-  description: "World-space X where the object was when grabbing started.",
+  description: "Current world-space X of the drag point.",
   highlight: false,
   isDeprecated: false,
   params: [],
@@ -9,5 +9,5 @@ export const config = {
 export const expose = false;
 
 export default function () {
-  return this._grabOriginX;
+  return this._dragPointX;
 }

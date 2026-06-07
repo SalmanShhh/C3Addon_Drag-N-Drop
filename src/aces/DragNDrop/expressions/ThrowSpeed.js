@@ -1,6 +1,6 @@
 export const config = {
   returnType: "number",
-  description: "Magnitude of the final release velocity.",
+  description: "Magnitude of the throw velocity. Use inside On Dropped.",
   highlight: false,
   isDeprecated: false,
   params: [],

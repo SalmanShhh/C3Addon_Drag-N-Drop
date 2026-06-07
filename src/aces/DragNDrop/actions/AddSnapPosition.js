@@ -1,7 +1,8 @@
 export const config = {
-  listName: "Set anchor",
-  displayText: "Set anchor to {0}, {1}",
-  description: "Updates the world-space anchor that the dragged object follows.",
+  listName: "Add snap position",
+  displayText: "Add snap position ({0}, {1})",
+  description:
+    "Registers a world-space position as a snap and magnet target. Needs a snap radius to take effect.",
   isAsync: false,
   highlight: false,
   isDeprecated: false,
@@ -9,14 +10,14 @@ export const config = {
     {
       id: "x",
       name: "X",
-      desc: "World-space X anchor position.",
+      desc: "World-space X of the snap target.",
       type: "number",
       initialValue: "0",
     },
     {
       id: "y",
       name: "Y",
-      desc: "World-space Y anchor position.",
+      desc: "World-space Y of the snap target.",
       type: "number",
       initialValue: "0",
     },
@@ -26,5 +27,5 @@ export const config = {
 export const expose = true;
 
 export default function (x, y) {
-  this._setAnchor(x, y);
+  this._addSnapPosition(x, y);
 }

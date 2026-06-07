@@ -1,7 +1,8 @@
 export const config = {
   listName: "Set follow speed",
   displayText: "Set follow speed to {0}",
-  description: "Sets the lerp speed for following the anchor.",
+  description:
+    "How fast the object catches up to the drag point, in pixels per second. 0 = instant snap.",
   isAsync: false,
   highlight: false,
   isDeprecated: false,
@@ -9,7 +10,7 @@ export const config = {
     {
       id: "speed",
       name: "Speed",
-      desc: "Pixels per second. 0 means instant snap.",
+      desc: "Pixels per second. 0 means the object snaps to the drag point each tick.",
       type: "number",
       initialValue: "0",
     },

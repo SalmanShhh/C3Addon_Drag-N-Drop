@@ -1,7 +1,7 @@
 export const config = {
-  listName: "On grabbed",
-  displayText: "On grabbed",
-  description: "Triggered when a drag starts.",
+  listName: "On drag started",
+  displayText: "On drag started",
+  description: "Triggered when Start Drag succeeds.",
   isTrigger: true,
   isInvertible: false,
   params: [],

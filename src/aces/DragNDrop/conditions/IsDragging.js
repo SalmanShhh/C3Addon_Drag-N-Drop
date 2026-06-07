@@ -1,7 +1,7 @@
 export const config = {
-  listName: "Is held",
-  displayText: "Is held",
-  description: "True while the object is currently being dragged.",
+  listName: "Is dragging",
+  displayText: "Is dragging",
+  description: "True while the object is being dragged.",
   isTrigger: false,
   isInvertible: true,
   params: [],
@@ -10,5 +10,5 @@ export const config = {
 export const expose = false;
 
 export default function () {
-  return this._held;
+  return this._dragging;
 }

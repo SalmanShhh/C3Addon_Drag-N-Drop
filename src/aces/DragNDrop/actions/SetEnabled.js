@@ -1,7 +1,7 @@
 export const config = {
   listName: "Set enabled",
-  displayText: "Set enabled to {0}",
-  description: "Enables or disables the drag behavior.",
+  displayText: "Set enabled {0}",
+  description: "Enables or disables the behaviour. Disabling cancels any in-progress drag.",
   isAsync: false,
   highlight: false,
   isDeprecated: false,
@@ -9,7 +9,7 @@ export const config = {
     {
       id: "enabled",
       name: "Enabled",
-      desc: "Whether the behavior should be enabled.",
+      desc: "Whether the behaviour is active.",
       type: "boolean",
       initialValue: "true",
     },

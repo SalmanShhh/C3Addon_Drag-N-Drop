@@ -1,93 +1,162 @@
 import { id, addonType } from "../../config.caw.js";
 import AddonTypeMap from "../../template/addonTypeMap.js";
 
+// How many recent drag-point velocity samples feed the throw average.
 const MAX_HISTORY = 8;
+// Number of push-out passes per tick when resolving overlapping solids.
+const MAX_SOLID_PASSES = 4;
+const QUARTER_TURN = Math.PI / 4;
 
-// Small helpers keep the drag logic readable and easy to tweak later.
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
+// ---------------------------------------------------------------------------
+// Small stateless helpers keep the drag logic readable and easy to tweak.
+// ---------------------------------------------------------------------------
 
 function safeNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
 }
 
-function normalizeAxisLock(value) {
-  if (value === 1 || value === "1" || value === "horizontal") {
-    return "horizontal";
-  }
-  if (value === 2 || value === "2" || value === "vertical") {
-    return "vertical";
-  }
-  return "none";
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
+// Combo params arrive as a 0-based index at runtime; accept the string form too
+// so the same setters work when called from the addon's script interface.
 function normalizeGrabMode(value) {
-  if (value === 1 || value === "1" || value === "snap_to_anchor") {
-    return "snap_to_anchor";
+  // ["keep_offset", "center_on_point"]
+  if (value === 1 || value === "1" || value === "center_on_point") {
+    return "center_on_point";
   }
   return "keep_offset";
 }
 
-function getObjectCenter(object) {
-  const x = safeNumber(object?.x, 0);
-  const y = safeNumber(object?.y, 0);
-  const width = safeNumber(object?.width, 0);
-  const height = safeNumber(object?.height, 0);
-  return { x: x + width / 2, y: y + height / 2 };
+// Directions follow the 8Direction / VectorCursor style: a free 360 default
+// plus single-axis and snapped multi-direction locks.
+// ["free", "up_down", "left_right", "four_dir", "eight_dir"]
+function normalizeDirections(value) {
+  switch (value) {
+    case 1:
+    case "1":
+    case "up_down":
+      return "up_down";
+    case 2:
+    case "2":
+    case "left_right":
+      return "left_right";
+    case 3:
+    case "3":
+    case "four_dir":
+      return "four_dir";
+    case 4:
+    case "4":
+    case "eight_dir":
+      return "eight_dir";
+    default:
+      return "free";
+  }
 }
 
-function getInstanceBounds(instance) {
-  if (!instance) {
-    return { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 };
+function normalizeEndAction(value) {
+  // ["drop", "cancel"] for break distance and ["release", "cancel"] for Drop
+  if (value === 1 || value === "1" || value === "cancel") {
+    return "cancel";
   }
+  return value === "release" ? "release" : "drop";
+}
 
-  if (typeof instance.getBoundingBox === "function") {
-    const box = instance.getBoundingBox();
+// Constrains a displacement (dx, dy) from the grab origin to the chosen
+// direction set, projecting onto the nearest allowed direction.
+function constrainDelta(dx, dy, mode) {
+  switch (mode) {
+    case "up_down":
+      return [0, dy];
+    case "left_right":
+      return [dx, 0];
+    case "four_dir":
+      // Keep whichever cardinal axis the drag leans toward most.
+      return Math.abs(dx) >= Math.abs(dy) ? [dx, 0] : [0, dy];
+    case "eight_dir": {
+      // Snap the displacement angle to the nearest 45 degrees, then project.
+      const snapped = Math.round(Math.atan2(dy, dx) / QUARTER_TURN) * QUARTER_TURN;
+      const cos = Math.cos(snapped);
+      const sin = Math.sin(snapped);
+      const magnitude = dx * cos + dy * sin;
+      return [cos * magnitude, sin * magnitude];
+    }
+    default:
+      return [dx, dy];
+  }
+}
+
+// `inst.behaviors` may be a keyed object or an iterable depending on the
+// runtime surface, so flatten either form into a plain array of behaviors.
+function getBehaviorList(inst) {
+  const behaviors = inst?.behaviors;
+  if (!behaviors) {
+    return [];
+  }
+  if (Array.isArray(behaviors)) {
+    return behaviors;
+  }
+  if (typeof behaviors[Symbol.iterator] === "function") {
+    return Array.from(behaviors);
+  }
+  return Object.values(behaviors);
+}
+
+// An object blocks a drag only if it carries an enabled Solid behaviour.
+function hasEnabledSolid(inst) {
+  for (const behavior of getBehaviorList(inst)) {
+    const name = behavior?.behaviorType?.name ?? behavior?.behavior?.name;
+    if (name === "Solid") {
+      // Treat a missing isEnabled flag as enabled (older surfaces).
+      if (behavior.isEnabled === undefined || behavior.isEnabled) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Axis-aligned bounds for a minimum-translation-vector push-out. Falls back to
+// position + size when getBoundingBox() is unavailable.
+function getBounds(inst) {
+  if (inst && typeof inst.getBoundingBox === "function") {
+    const box = inst.getBoundingBox();
     if (box) {
       return {
-        left: safeNumber(box.left, safeNumber(instance.x, 0)),
-        top: safeNumber(box.top, safeNumber(instance.y, 0)),
-        right: safeNumber(box.right, safeNumber(instance.x, 0) + safeNumber(instance.width, 0)),
-        bottom: safeNumber(box.bottom, safeNumber(instance.y, 0) + safeNumber(instance.height, 0)),
-        width: safeNumber(box.right, safeNumber(instance.width, 0)) - safeNumber(box.left, safeNumber(instance.x, 0)),
-        height: safeNumber(box.bottom, safeNumber(instance.height, 0)) - safeNumber(box.top, safeNumber(instance.y, 0)),
+        left: safeNumber(box.left, 0),
+        top: safeNumber(box.top, 0),
+        right: safeNumber(box.right, 0),
+        bottom: safeNumber(box.bottom, 0),
       };
     }
   }
-
-  const x = safeNumber(instance.x, 0);
-  const y = safeNumber(instance.y, 0);
-  const width = safeNumber(instance.width, 0);
-  const height = safeNumber(instance.height, 0);
-
-  return {
-    left: x,
-    top: y,
-    right: x + width,
-    bottom: y + height,
-    width,
-    height,
-  };
+  const x = safeNumber(inst?.x, 0);
+  const y = safeNumber(inst?.y, 0);
+  const width = safeNumber(inst?.width, 0);
+  const height = safeNumber(inst?.height, 0);
+  return { left: x, top: y, right: x + width, bottom: y + height };
 }
 
-function getSeparationCandidate(objectBox, otherBox) {
-  const left = otherBox.right - objectBox.left;
-  const right = objectBox.right - otherBox.left;
-  const top = otherBox.bottom - objectBox.top;
-  const bottom = objectBox.bottom - otherBox.top;
+// Minimum-translation vector that separates objectBox from otherBox, or null
+// when they no longer overlap.
+function minimumTranslation(objectBox, otherBox) {
+  const pushRight = otherBox.right - objectBox.left; // move object +x
+  const pushLeft = objectBox.right - otherBox.left; // move object -x
+  const pushDown = otherBox.bottom - objectBox.top; // move object +y
+  const pushUp = objectBox.bottom - otherBox.top; // move object -y
+
+  if (pushRight <= 0 || pushLeft <= 0 || pushDown <= 0 || pushUp <= 0) {
+    return null; // a separating gap exists on some axis: no real overlap
+  }
 
   const candidates = [
-    { axis: "x", amount: left, direction: 1 },
-    { axis: "x", amount: right, direction: -1 },
-    { axis: "y", amount: top, direction: 1 },
-    { axis: "y", amount: bottom, direction: -1 },
-  ].filter((candidate) => candidate.amount > 1e-4);
-
-  if (candidates.length === 0) {
-    return null;
-  }
+    { axis: "x", amount: pushRight, direction: 1 },
+    { axis: "x", amount: pushLeft, direction: -1 },
+    { axis: "y", amount: pushDown, direction: 1 },
+    { axis: "y", amount: pushUp, direction: -1 },
+  ];
 
   return candidates.reduce((best, candidate) =>
     candidate.amount < best.amount ? candidate : best
@@ -98,24 +167,42 @@ export default function (parentClass) {
   return class extends parentClass {
     constructor() {
       super();
-      // Per-frame drag updates are handled in _tick(), so enable ticking once here.
+      // `this.instance` is null here, so only touch primitives, Maps, and
+      // _getInitProperties(). Per-tick work happens in _tick().
       this._setTicking(true);
       this.events = {};
 
-      // Runtime state owned by this behavior.
-      this._enabled = true;
-      this._held = false;
-      this._anchorX = 0;
-      this._anchorY = 0;
-      this._prevAnchorX = 0;
-      this._prevAnchorY = 0;
-      this._grabOriginX = 0;
-      this._grabOriginY = 0;
+      // The Properties Panel exposes a small set of common defaults; every one
+      // can still be overridden at runtime through its action.
+      const properties = this._getInitProperties() || [];
+      this._enabled = properties[0] !== false;
+      this._followSpeed = Math.max(0, safeNumber(properties[1], 0));
+      this._directions = normalizeDirections(properties[2]);
+      this._solidCollision = !!properties[3];
+      this._breakDistance = Math.max(0, safeNumber(properties[4], 0));
+      this._breakAction =
+        normalizeEndAction(properties[5]) === "cancel" ? "cancel" : "drop";
+
+      // Drag lifecycle state.
+      this._dragging = false;
+      this._dragPointX = 0;
+      this._dragPointY = 0;
+      this._prevDragPointX = 0;
+      this._prevDragPointY = 0;
+
+      // Grab mode offset (object position minus drag point at grab time).
       this._grabOffsetX = 0;
       this._grabOffsetY = 0;
-      this._axisLock = "none";
-      this._distanceClamp = 0;
-      this._followSpeed = 0;
+
+      // Direction-lock baseline (object position captured when the lock applies).
+      this._lockOriginX = 0;
+      this._lockOriginY = 0;
+
+      // Live measurements.
+      this._distanceFromPoint = 0;
+      this._wasPushingSolid = false;
+
+      // Throw measurement + override.
       this._throwVelX = 0;
       this._throwVelY = 0;
       this._throwSpeed = 0;
@@ -124,20 +211,38 @@ export default function (parentClass) {
       this._hasThrowOverride = false;
       this._history = [];
       this._historyCursor = 0;
-      this._distanceFromOrigin = 0;
-      this._distanceLimitReached = false;
-      this._wasThrown = false;
+
+      // Why the last drag ended: "manual" or "broke_distance".
+      this._dropReason = "manual";
+
+      // Snap / magnet (homing) state. Disabled until a radius is set.
+      this._snapPositions = []; // [{ x, y }]
+      this._snapUids = new Set(); // registered target instance UIDs
+      this._snapRadius = 0; // 0 disables snapping and magnetism
+      this._magnetStrength = 0; // 0 = snap only on drop; >0 = live pull
+      this._isSnapping = false; // within snap radius of a target this tick
+      this._snapTargetX = 0;
+      this._snapTargetY = 0;
+      this._snappedUid = -1; // UID snapped to on the last drop, or -1
     }
 
-    onCreate() {
-      // The panel property is stored as a boolean named "enabled".
-      const startEnabled = this._getProperty("enabled");
-      this._enabled = startEnabled !== false;
-      this._anchorX = safeNumber(this.instance?.x, 0);
-      this._anchorY = safeNumber(this.instance?.y, 0);
-      this._prevAnchorX = this._anchorX;
-      this._prevAnchorY = this._anchorY;
+    _postCreate() {
+      // Runs after the attached object finishes creation, before the first
+      // _tick(). Seed the drag point at the object's position so expressions
+      // read sensible values before any drag starts.
+      if (this.instance) {
+        this._dragPointX = safeNumber(this.instance.x, 0);
+        this._dragPointY = safeNumber(this.instance.y, 0);
+        this._prevDragPointX = this._dragPointX;
+        this._prevDragPointY = this._dragPointY;
+        this._snapTargetX = this._dragPointX;
+        this._snapTargetY = this._dragPointY;
+      }
     }
+
+    // -----------------------------------------------------------------------
+    // Trigger / script-event plumbing
+    // -----------------------------------------------------------------------
 
     _trigger(method) {
       this.dispatch(method);
@@ -176,282 +281,388 @@ export default function (parentClass) {
       }
     }
 
+    // -----------------------------------------------------------------------
+    // Per-tick drag update
+    // -----------------------------------------------------------------------
+
     _tick() {
-      // If the behavior is disabled, not currently grabbed, or the instance is gone,
-      // there is nothing to position or sample this frame.
-      if (!this._enabled || !this._held || !this.instance) {
+      if (!this._enabled || !this._dragging || !this.instance) {
         return;
       }
 
-      const dt = safeNumber(this.runtime?.dt, 0);
-      const currentAnchorX = this._anchorX;
-      const currentAnchorY = this._anchorY;
-      let targetX = currentAnchorX + this._grabOffsetX;
-      let targetY = currentAnchorY + this._grabOffsetY;
+      // Per-instance dt respects any timeScale the developer set on the object.
+      const dt = safeNumber(this.instance.dt, 0);
 
-      if (this._axisLock === "horizontal") {
-        targetY = this._grabOriginY;
-      } else if (this._axisLock === "vertical") {
-        targetX = this._grabOriginX;
+      // Resolve the target from the drag point, the grab offset and direction lock.
+      let targetX = this._dragPointX + this._grabOffsetX;
+      let targetY = this._dragPointY + this._grabOffsetY;
+      if (this._directions !== "free") {
+        const [cdx, cdy] = constrainDelta(
+          targetX - this._lockOriginX,
+          targetY - this._lockOriginY,
+          this._directions
+        );
+        targetX = this._lockOriginX + cdx;
+        targetY = this._lockOriginY + cdy;
       }
 
-      const deltaX = targetX - this._grabOriginX;
-      const deltaY = targetY - this._grabOriginY;
-      this._distanceFromOrigin = Math.hypot(deltaX, deltaY);
+      // Magnet / homing: bias the target toward the nearest in-range snap point.
+      if (this._snapRadius > 0 && this._magnetStrength > 0) {
+        const near = this._findNearestSnap(targetX, targetY);
+        if (near && near.dist <= this._snapRadius) {
+          const proximity = clamp(1 - near.dist / this._snapRadius, 0, 1);
+          const factor = clamp(this._magnetStrength * proximity, 0, 1);
+          targetX += (near.x - targetX) * factor;
+          targetY += (near.y - targetY) * factor;
+        }
+      }
 
-      // Apply the distance clamp after any axis lock so the final target stays valid.
-      if (
-        this._distanceClamp > 0 &&
-        this._distanceFromOrigin > this._distanceClamp
-      ) {
-        const ratio = this._distanceClamp / Math.max(this._distanceFromOrigin, 1e-5);
-        targetX = this._grabOriginX + deltaX * ratio;
-        targetY = this._grabOriginY + deltaY * ratio;
-        if (!this._distanceLimitReached) {
-          this._distanceLimitReached = true;
-          this._trigger("OnDistanceLimitReached");
+      // Follow speed 0 snaps exactly; otherwise move at most speed*dt toward it.
+      if (this._followSpeed > 0 && dt > 0) {
+        const dx = targetX - this.instance.x;
+        const dy = targetY - this.instance.y;
+        const distance = Math.hypot(dx, dy);
+        const maxStep = this._followSpeed * dt;
+        if (distance > maxStep && distance > 1e-6) {
+          const ratio = maxStep / distance;
+          this.instance.x += dx * ratio;
+          this.instance.y += dy * ratio;
+        } else {
+          this.instance.x = targetX;
+          this.instance.y = targetY;
         }
       } else {
-        this._distanceLimitReached = false;
-      }
-
-      // Move the object toward the resolved target. A speed of 0 gives instant snap.
-      if (this._followSpeed > 0 && dt > 0) {
-        const amount = clamp(this._followSpeed * dt, 0, 1);
-        this.instance.x += (targetX - this.instance.x) * amount;
-        this.instance.y += (targetY - this.instance.y) * amount;
-      } else {
+        // SDK v2 position setters invalidate the bounding box automatically.
         this.instance.x = targetX;
         this.instance.y = targetY;
       }
 
-      // Resolve overlaps after the position update so dragging does not tunnel into
-      // solid or custom obstacle instances while the object is being moved.
-      this._resolveCollisions();
+      // Push out of any solids so the object cannot be dragged through them.
+      const hitSolid = this._solidCollision ? this._resolveSolids() : false;
 
-      this._distanceFromOrigin = Math.hypot(
-        this.instance.x - this._grabOriginX,
-        this.instance.y - this._grabOriginY
+      // Gap between the object and the drag point; grows while a solid blocks.
+      this._distanceFromPoint = Math.hypot(
+        this.instance.x - this._dragPointX,
+        this.instance.y - this._dragPointY
       );
 
-      // Sample velocity from the last anchor delta so the release event can report momentum.
-      if (dt > 0) {
-        const velocityX = (currentAnchorX - this._prevAnchorX) / dt;
-        const velocityY = (currentAnchorY - this._prevAnchorY) / dt;
-        this._recordVelocity(velocityX, velocityY);
+      // On Hit Solid fires on the first tick a push-out occurs (rising edge),
+      // after the gap is current so DistanceFromPoint reads correctly.
+      if (hitSolid && !this._wasPushingSolid) {
+        this._trigger("OnHitSolid");
       }
+      this._wasPushingSolid = hitSolid;
 
-      this._prevAnchorX = currentAnchorX;
-      this._prevAnchorY = currentAnchorY;
+      // Live snap state for the Is Snapping condition and SnapTarget expressions.
+      this._updateSnapState();
+
+      // Sample drag-point velocity for the throw, then advance the previous point.
+      if (dt > 0) {
+        this._recordVelocity(
+          (this._dragPointX - this._prevDragPointX) / dt,
+          (this._dragPointY - this._prevDragPointY) / dt
+        );
+      }
+      this._prevDragPointX = this._dragPointX;
+      this._prevDragPointY = this._dragPointY;
+
+      // Tear-free model: once the gap outgrows the break distance, end the drag.
+      if (this._breakDistance > 0 && this._distanceFromPoint > this._breakDistance) {
+        this._endDrag(this._breakAction !== "cancel", "broke_distance");
+      }
     }
 
-    _getCollisionCandidates() {
-      if (!this.runtime?.objects) {
-        return [];
+    // -----------------------------------------------------------------------
+    // Solid push-out (minimum-translation-vector, documented overlap tests)
+    // -----------------------------------------------------------------------
+
+    // Resolves overlaps via iterated minimum-translation pushes; returns true
+    // if the object was pushed out of at least one solid this tick.
+    _resolveSolids() {
+      let pushed = false;
+
+      for (let pass = 0; pass < MAX_SOLID_PASSES; pass += 1) {
+        const solid = this._findOverlappingSolid();
+        if (!solid) {
+          break;
+        }
+
+        const translation = minimumTranslation(
+          getBounds(this.instance),
+          getBounds(solid)
+        );
+        if (!translation) {
+          break;
+        }
+
+        if (translation.axis === "x") {
+          this.instance.x += translation.direction * translation.amount;
+        } else {
+          this.instance.y += translation.direction * translation.amount;
+        }
+        pushed = true;
       }
 
-      const candidates = [];
-      for (const objectType of this.runtime.objects) {
-        if (!objectType?.getAllInstances) {
+      return pushed;
+    }
+
+    _findOverlappingSolid() {
+      const instance = this.instance;
+      if (!instance) {
+        return null;
+      }
+
+      // Prefer the documented helper when present: it returns an overlapping
+      // Solid-behaviour instance directly.
+      if (typeof instance.testOverlapSolid === "function") {
+        const solid = instance.testOverlapSolid();
+        if (solid) {
+          return solid;
+        }
+      }
+
+      // Fall back to scanning instances for an enabled Solid behaviour.
+      if (typeof instance.testOverlap === "function" && this.runtime?.objects) {
+        for (const objectType of this.runtime.objects) {
+          if (typeof objectType?.getAllInstances !== "function") {
+            continue;
+          }
+          for (const other of objectType.getAllInstances()) {
+            if (
+              other &&
+              other !== instance &&
+              hasEnabledSolid(other) &&
+              instance.testOverlap(other)
+            ) {
+              return other;
+            }
+          }
+        }
+      }
+
+      return null;
+    }
+
+    // -----------------------------------------------------------------------
+    // Snap / homing / magnet
+    // -----------------------------------------------------------------------
+
+    _getInstanceByUid(uid) {
+      const runtime = this.runtime;
+      if (runtime && typeof runtime.getInstanceByUid === "function") {
+        return runtime.getInstanceByUid(uid);
+      }
+      return null;
+    }
+
+    // Nearest registered snap target to (x, y): { x, y, uid, dist } or null.
+    _findNearestSnap(x, y) {
+      let best = null;
+
+      for (const point of this._snapPositions) {
+        const dist = Math.hypot(x - point.x, y - point.y);
+        if (!best || dist < best.dist) {
+          best = { x: point.x, y: point.y, uid: -1, dist };
+        }
+      }
+
+      for (const uid of this._snapUids) {
+        const target = this._getInstanceByUid(uid);
+        if (!target) {
           continue;
         }
-
-        for (const instance of objectType.getAllInstances()) {
-          if (instance && instance !== this.instance) {
-            candidates.push(instance);
-          }
+        const tx = safeNumber(target.x, 0);
+        const ty = safeNumber(target.y, 0);
+        const dist = Math.hypot(x - tx, y - ty);
+        if (!best || dist < best.dist) {
+          best = { x: tx, y: ty, uid, dist };
         }
       }
 
-      return candidates;
+      return best;
     }
 
-    _resolveCollisions() {
-      if (!this.instance) {
+    _updateSnapState() {
+      if (this._snapRadius <= 0 || !this.instance) {
+        this._isSnapping = false;
+        this._snapTargetX = this.instance ? this.instance.x : this._snapTargetX;
+        this._snapTargetY = this.instance ? this.instance.y : this._snapTargetY;
         return;
       }
 
-      for (let pass = 0; pass < 4; pass += 1) {
-        let shifted = false;
-        const objectBox = getInstanceBounds(this.instance);
-
-        for (const other of this._getCollisionCandidates()) {
-          if (!other || typeof other.testOverlap !== "function") {
-            continue;
-          }
-
-          if (!other.testOverlap(this.instance)) {
-            continue;
-          }
-
-          const otherBox = getInstanceBounds(other);
-          const candidate = getSeparationCandidate(objectBox, otherBox);
-          if (!candidate) {
-            continue;
-          }
-
-          if (candidate.axis === "x") {
-            this.instance.x += candidate.direction * candidate.amount;
-          } else {
-            this.instance.y += candidate.direction * candidate.amount;
-          }
-
-          shifted = true;
-          break;
-        }
-
-        if (!shifted) {
-          break;
-        }
+      const near = this._findNearestSnap(this.instance.x, this.instance.y);
+      if (near) {
+        this._snapTargetX = near.x;
+        this._snapTargetY = near.y;
+        this._isSnapping = near.dist <= this._snapRadius;
+      } else {
+        this._snapTargetX = this.instance.x;
+        this._snapTargetY = this.instance.y;
+        this._isSnapping = false;
       }
     }
+
+    // -----------------------------------------------------------------------
+    // Throw measurement
+    // -----------------------------------------------------------------------
 
     _recordVelocity(velocityX, velocityY) {
-      const samples = this._history.length;
       this._history[this._historyCursor] = { velocityX, velocityY };
       this._historyCursor = (this._historyCursor + 1) % MAX_HISTORY;
-      if (samples < MAX_HISTORY) {
-        this._history.length = Math.min(samples + 1, MAX_HISTORY);
-      }
     }
 
-    _computeThrowVelocity() {
-      const history = this._history.length > 0 ? this._history : [{ velocityX: 0, velocityY: 0 }];
-      const totalX = history.reduce((sum, item) => sum + (item.velocityX ?? 0), 0);
-      const totalY = history.reduce((sum, item) => sum + (item.velocityY ?? 0), 0);
-      const count = history.length || 1;
-      return {
-        x: totalX / count,
-        y: totalY / count,
-      };
+    _averageVelocity() {
+      if (this._history.length === 0) {
+        return { x: 0, y: 0 };
+      }
+      let totalX = 0;
+      let totalY = 0;
+      for (const sample of this._history) {
+        totalX += sample.velocityX;
+        totalY += sample.velocityY;
+      }
+      return { x: totalX / this._history.length, y: totalY / this._history.length };
     }
 
-    _finalizeRelease(computeThrow = true) {
-      // Release ends the drag and converts the recent anchor samples into throw data.
-      if (!this._held) {
-        return false;
-      }
-
-      const throwVelocity = this._computeThrowVelocity();
-      const overrideX = this._hasThrowOverride ? this._overrideThrowVelX : null;
-      const overrideY = this._hasThrowOverride ? this._overrideThrowVelY : null;
-      this._throwVelX = computeThrow
-        ? (this._hasThrowOverride ? overrideX : throwVelocity.x)
-        : 0;
-      this._throwVelY = computeThrow
-        ? (this._hasThrowOverride ? overrideY : throwVelocity.y)
-        : 0;
-      this._throwSpeed = Math.hypot(this._throwVelX, this._throwVelY);
-      this._wasThrown = this._throwSpeed > 0.001;
-      this._held = false;
-      this._distanceLimitReached = false;
+    _resetThrowSampling() {
       this._history = [];
       this._historyCursor = 0;
-      this._overrideThrowVelX = 0;
-      this._overrideThrowVelY = 0;
+    }
+
+    // -----------------------------------------------------------------------
+    // Drag lifecycle
+    // -----------------------------------------------------------------------
+
+    _startDrag(dragPointX, dragPointY, grabMode) {
+      // Start/stop are events; a disabled behaviour or an active drag is ignored.
+      if (!this._enabled || this._dragging || !this.instance) {
+        return;
+      }
+
+      const dpX = safeNumber(dragPointX, this.instance.x);
+      const dpY = safeNumber(dragPointY, this.instance.y);
+
+      this._dragPointX = dpX;
+      this._dragPointY = dpY;
+      this._prevDragPointX = dpX;
+      this._prevDragPointY = dpY;
+
+      // keep_offset records the grab offset; center_on_point zeroes it.
+      if (normalizeGrabMode(grabMode) === "center_on_point") {
+        this._grabOffsetX = 0;
+        this._grabOffsetY = 0;
+      } else {
+        this._grabOffsetX = this.instance.x - dpX;
+        this._grabOffsetY = this.instance.y - dpY;
+      }
+
+      // Direction lock holds whichever line the object started on.
+      this._lockOriginX = this.instance.x;
+      this._lockOriginY = this.instance.y;
+
+      this._dragging = true;
+      this._dropReason = "manual";
+      this._distanceFromPoint = 0;
+      this._wasPushingSolid = false;
       this._hasThrowOverride = false;
-      return true;
+      this._throwVelX = 0;
+      this._throwVelY = 0;
+      this._throwSpeed = 0;
+      this._isSnapping = false;
+      this._snappedUid = -1;
+      this._resetThrowSampling();
+
+      this._trigger("OnDragStarted");
     }
 
-    _cancelCurrentGrab() {
-      if (!this._held) {
+    _drop(how) {
+      if (!this._dragging) {
+        return;
+      }
+      this._endDrag(normalizeEndAction(how) !== "cancel", "manual");
+    }
+
+    // applyThrow=true releases (throw + OnDropped); false cancels silently.
+    _endDrag(applyThrow, reason) {
+      if (!this._dragging) {
         return;
       }
 
-      this._held = false;
-      this._distanceLimitReached = false;
-      this._history = [];
-      this._historyCursor = 0;
-      this._trigger("OnGrabCancelled");
-    }
+      this._dropReason = reason;
+      this._snappedUid = -1;
+      let didSnap = false;
 
-    _beginGrab(anchorX, anchorY, grabMode) {
-      // Start a drag by recording the current object position, anchor, and offset.
-      if (this._held) {
-        return;
-      }
-
-      const currentPosition = this.instance
-        ? { x: safeNumber(this.instance.x, 0), y: safeNumber(this.instance.y, 0) }
-        : { x: 0, y: 0 };
-      const nextAnchorX = safeNumber(anchorX, currentPosition.x);
-      const nextAnchorY = safeNumber(anchorY, currentPosition.y);
-      const mode = normalizeGrabMode(grabMode);
-
-      this._grabOriginX = currentPosition.x;
-      this._grabOriginY = currentPosition.y;
-      this._anchorX = nextAnchorX;
-      this._anchorY = nextAnchorY;
-      this._prevAnchorX = nextAnchorX;
-      this._prevAnchorY = nextAnchorY;
-      this._grabOffsetX = mode === "keep_offset" ? currentPosition.x - nextAnchorX : 0;
-      this._grabOffsetY = mode === "keep_offset" ? currentPosition.y - nextAnchorY : 0;
-      this._held = true;
-      this._wasThrown = false;
-      this._distanceLimitReached = false;
-      this._history = [];
-      this._historyCursor = 0;
-      this._hasThrowOverride = false;
-      this._trigger("OnGrabbed");
-    }
-
-    _grab(anchorX, anchorY, grabMode) {
-      if (this._held) {
-        return;
-      }
-      this._beginGrab(anchorX, anchorY, grabMode);
-    }
-
-    _forceGrab(anchorX, anchorY, grabMode) {
-      if (this._held) {
-        const released = this._finalizeRelease(true);
-        if (released) {
-          this._trigger("OnReleased");
+      // A release that lands within snap range locks onto the nearest target.
+      if (applyThrow && this._snapRadius > 0 && this.instance) {
+        const near = this._findNearestSnap(this.instance.x, this.instance.y);
+        if (near && near.dist <= this._snapRadius) {
+          this.instance.x = near.x;
+          this.instance.y = near.y;
+          this._snappedUid = near.uid;
+          didSnap = true;
         }
       }
-      this._beginGrab(anchorX, anchorY, grabMode);
-    }
 
-    _releaseGrab() {
-      if (!this._held) {
-        return;
+      // Snapping suppresses the throw so a placed object does not fling off.
+      if (applyThrow && !didSnap) {
+        if (this._hasThrowOverride) {
+          this._throwVelX = this._overrideThrowVelX;
+          this._throwVelY = this._overrideThrowVelY;
+        } else {
+          const velocity = this._averageVelocity();
+          this._throwVelX = velocity.x;
+          this._throwVelY = velocity.y;
+        }
+      } else {
+        this._throwVelX = 0;
+        this._throwVelY = 0;
       }
-      const released = this._finalizeRelease(true);
-      if (released) {
-        this._trigger("OnReleased");
+      this._throwSpeed = Math.hypot(this._throwVelX, this._throwVelY);
+
+      this._dragging = false;
+      this._wasPushingSolid = false;
+      this._hasThrowOverride = false;
+      this._isSnapping = false;
+      this._resetThrowSampling();
+
+      this._trigger(applyThrow ? "OnDropped" : "OnDragCancelled");
+      if (didSnap) {
+        this._trigger("OnSnapped");
       }
     }
 
-    _cancelGrab() {
-      this._cancelCurrentGrab();
-    }
+    // -----------------------------------------------------------------------
+    // Action setters
+    // -----------------------------------------------------------------------
 
-    _setAnchor(x, y) {
-      this._anchorX = safeNumber(x, this._anchorX);
-      this._anchorY = safeNumber(y, this._anchorY);
-    }
-
-    _setAnchorToObject(object) {
-      const center = getObjectCenter(object);
-      this._anchorX = center.x;
-      this._anchorY = center.y;
-    }
-
-    _setGrabOffset(offsetX, offsetY) {
-      this._grabOffsetX = safeNumber(offsetX, this._grabOffsetX);
-      this._grabOffsetY = safeNumber(offsetY, this._grabOffsetY);
-    }
-
-    _setAxisLock(axis) {
-      this._axisLock = normalizeAxisLock(axis);
-    }
-
-    _setDistanceClamp(radius) {
-      this._distanceClamp = Math.max(0, safeNumber(radius, 0));
+    _setDragPoint(x, y) {
+      this._dragPointX = safeNumber(x, this._dragPointX);
+      this._dragPointY = safeNumber(y, this._dragPointY);
     }
 
     _setFollowSpeed(speed) {
       this._followSpeed = Math.max(0, safeNumber(speed, 0));
+    }
+
+    _setDirections(directions) {
+      this._directions = normalizeDirections(directions);
+      // Re-baseline so a mid-drag change holds the object's current line.
+      if (this.instance) {
+        this._lockOriginX = safeNumber(this.instance.x, this._lockOriginX);
+        this._lockOriginY = safeNumber(this.instance.y, this._lockOriginY);
+      }
+    }
+
+    _setSolidCollision(enabled) {
+      this._solidCollision = !!enabled;
+      if (!this._solidCollision) {
+        this._wasPushingSolid = false;
+      }
+    }
+
+    _setBreakDistance(distance, action) {
+      this._breakDistance = Math.max(0, safeNumber(distance, 0));
+      this._breakAction = normalizeEndAction(action) === "cancel" ? "cancel" : "drop";
     }
 
     _setThrowVelocity(velX, velY) {
@@ -460,81 +671,130 @@ export default function (parentClass) {
       this._hasThrowOverride = true;
     }
 
-    _clearThrowVelocity() {
-      this._overrideThrowVelX = 0;
-      this._overrideThrowVelY = 0;
-      this._hasThrowOverride = false;
+    _setEnabled(enabled) {
+      const next = !!enabled;
+      if (!next && this._dragging) {
+        // Disabling cancels any in-progress drag silently (no event per spec).
+        this._dragging = false;
+        this._wasPushingSolid = false;
+        this._hasThrowOverride = false;
+        this._isSnapping = false;
+        this._resetThrowSampling();
+      }
+      this._enabled = next;
     }
 
-    _setEnabled(enabled) {
-      const nextEnabled = !!enabled;
-      if (!nextEnabled && this._held) {
-        this._cancelCurrentGrab();
-      }
-      this._enabled = nextEnabled;
+    _addSnapPosition(x, y) {
+      this._snapPositions.push({ x: safeNumber(x, 0), y: safeNumber(y, 0) });
     }
+
+    _addSnapObject(object) {
+      if (!object) {
+        return;
+      }
+      // The param is usually a single picked instance; tolerate an object type.
+      if (typeof object.uid === "number") {
+        this._snapUids.add(object.uid);
+      } else if (typeof object.getAllInstances === "function") {
+        for (const inst of object.getAllInstances()) {
+          if (inst && typeof inst.uid === "number") {
+            this._snapUids.add(inst.uid);
+          }
+        }
+      }
+    }
+
+    _clearSnapTargets() {
+      this._snapPositions = [];
+      this._snapUids.clear();
+      this._isSnapping = false;
+    }
+
+    _setSnapRadius(radius) {
+      this._snapRadius = Math.max(0, safeNumber(radius, 0));
+      if (this._snapRadius <= 0) {
+        this._isSnapping = false;
+      }
+    }
+
+    _setMagnetStrength(strength) {
+      this._magnetStrength = clamp(safeNumber(strength, 0), 0, 1);
+    }
+
+    // -----------------------------------------------------------------------
+    // Debugger
+    // -----------------------------------------------------------------------
 
     _getDebuggerProperties() {
       return [
         {
           title: "$" + this.behaviorType.name,
           properties: [
-            { name: "$held", value: this._held, onedit: (value) => { this._held = !!value; } },
-            { name: "$enabled", value: this._enabled, onedit: (value) => { this._enabled = !!value; } },
-            { name: "$anchorX", value: this._anchorX, onedit: (value) => { this._anchorX = safeNumber(value, this._anchorX); } },
-            { name: "$anchorY", value: this._anchorY, onedit: (value) => { this._anchorY = safeNumber(value, this._anchorY); } },
-            { name: "$grabOriginX", value: this._grabOriginX, onedit: (value) => { this._grabOriginX = safeNumber(value, this._grabOriginX); } },
-            { name: "$grabOriginY", value: this._grabOriginY, onedit: (value) => { this._grabOriginY = safeNumber(value, this._grabOriginY); } },
-            { name: "$throwVelX", value: this._throwVelX, onedit: (value) => { this._throwVelX = safeNumber(value, this._throwVelX); } },
-            { name: "$throwVelY", value: this._throwVelY, onedit: (value) => { this._throwVelY = safeNumber(value, this._throwVelY); } },
-            { name: "$throwSpeed", value: this._throwSpeed, onedit: (value) => { this._throwSpeed = Math.max(0, safeNumber(value, this._throwSpeed)); } },
-            { name: "$distanceFromOrigin", value: this._distanceFromOrigin, onedit: (value) => { this._distanceFromOrigin = Math.max(0, safeNumber(value, this._distanceFromOrigin)); } },
-            { name: "$axisLock", value: this._axisLock },
-            { name: "$distanceClamp", value: this._distanceClamp, onedit: (value) => { this._distanceClamp = Math.max(0, safeNumber(value, this._distanceClamp)); } },
-            { name: "$followSpeed", value: this._followSpeed, onedit: (value) => { this._followSpeed = Math.max(0, safeNumber(value, this._followSpeed)); } },
+            { name: "$enabled", value: this._enabled, onedit: (v) => { this._enabled = !!v; } },
+            { name: "$dragging", value: this._dragging },
+            { name: "$dragPointX", value: this._dragPointX, onedit: (v) => { this._dragPointX = safeNumber(v, this._dragPointX); } },
+            { name: "$dragPointY", value: this._dragPointY, onedit: (v) => { this._dragPointY = safeNumber(v, this._dragPointY); } },
+            { name: "$distanceFromPoint", value: this._distanceFromPoint },
+            { name: "$directions", value: this._directions },
+            { name: "$followSpeed", value: this._followSpeed, onedit: (v) => { this._followSpeed = Math.max(0, safeNumber(v, this._followSpeed)); } },
+            { name: "$solidCollision", value: this._solidCollision, onedit: (v) => { this._solidCollision = !!v; } },
+            { name: "$breakDistance", value: this._breakDistance, onedit: (v) => { this._breakDistance = Math.max(0, safeNumber(v, this._breakDistance)); } },
+            { name: "$snapRadius", value: this._snapRadius, onedit: (v) => { this._snapRadius = Math.max(0, safeNumber(v, this._snapRadius)); } },
+            { name: "$magnetStrength", value: this._magnetStrength, onedit: (v) => { this._magnetStrength = clamp(safeNumber(v, this._magnetStrength), 0, 1); } },
+            { name: "$isSnapping", value: this._isSnapping },
+            { name: "$throwVelocityX", value: this._throwVelX },
+            { name: "$throwVelocityY", value: this._throwVelY },
           ],
         },
       ];
     }
 
+    // -----------------------------------------------------------------------
+    // Lifecycle / serialisation
+    // -----------------------------------------------------------------------
+
     _release() {
-      if (this._held) {
-        this._cancelCurrentGrab();
-      }
+      // End any drag without firing events as the instance is destroyed.
+      this._dragging = false;
       super._release();
     }
 
     _saveToJson() {
+      // The dragging state is intentionally not saved; only options persist.
       return {
-        held: this._held,
         enabled: this._enabled,
-        anchorX: this._anchorX,
-        anchorY: this._anchorY,
-        grabOriginX: this._grabOriginX,
-        grabOriginY: this._grabOriginY,
-        axisLock: this._axisLock,
-        distanceClamp: this._distanceClamp,
         followSpeed: this._followSpeed,
-        throwVelX: this._throwVelX,
-        throwVelY: this._throwVelY,
-        throwSpeed: this._throwSpeed,
+        directions: this._directions,
+        solidCollision: this._solidCollision,
+        breakDistance: this._breakDistance,
+        breakAction: this._breakAction,
+        snapRadius: this._snapRadius,
+        magnetStrength: this._magnetStrength,
+        snapPositions: this._snapPositions,
+        snapUids: Array.from(this._snapUids),
       };
     }
 
     _loadFromJson(o) {
       this._enabled = o?.enabled !== false;
-      this._held = false;
-      this._anchorX = safeNumber(o?.anchorX, this._anchorX);
-      this._anchorY = safeNumber(o?.anchorY, this._anchorY);
-      this._grabOriginX = safeNumber(o?.grabOriginX, this._grabOriginX);
-      this._grabOriginY = safeNumber(o?.grabOriginY, this._grabOriginY);
-      this._axisLock = normalizeAxisLock(o?.axisLock);
-      this._distanceClamp = Math.max(0, safeNumber(o?.distanceClamp, this._distanceClamp));
       this._followSpeed = Math.max(0, safeNumber(o?.followSpeed, this._followSpeed));
-      this._throwVelX = safeNumber(o?.throwVelX, 0);
-      this._throwVelY = safeNumber(o?.throwVelY, 0);
-      this._throwSpeed = safeNumber(o?.throwSpeed, 0);
-      this._wasThrown = this._throwSpeed > 0.001;
+      this._directions = normalizeDirections(o?.directions);
+      this._solidCollision = !!o?.solidCollision;
+      this._breakDistance = Math.max(0, safeNumber(o?.breakDistance, this._breakDistance));
+      this._breakAction = o?.breakAction === "cancel" ? "cancel" : "drop";
+      this._snapRadius = Math.max(0, safeNumber(o?.snapRadius, this._snapRadius));
+      this._magnetStrength = clamp(safeNumber(o?.magnetStrength, this._magnetStrength), 0, 1);
+      this._snapPositions = Array.isArray(o?.snapPositions)
+        ? o.snapPositions.map((p) => ({ x: safeNumber(p?.x, 0), y: safeNumber(p?.y, 0) }))
+        : [];
+      this._snapUids = new Set(Array.isArray(o?.snapUids) ? o.snapUids : []);
+      // A save made mid-drag loads as not dragging.
+      this._dragging = false;
+      this._wasPushingSolid = false;
+      this._hasThrowOverride = false;
+      this._isSnapping = false;
+      this._snappedUid = -1;
+      this._resetThrowSampling();
     }
   };
 }

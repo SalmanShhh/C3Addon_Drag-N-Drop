@@ -8,13 +8,13 @@ import _version from "./version.js";
 export const addonType = ADDON_TYPE.BEHAVIOR;
 export const type = PLUGIN_TYPE.OBJECT;
 export const id = "salmanshh_dragndrop";
-export const name = "DragNDrop";
+export const name = "Drag N Drop";
 export const version = _version;
 export const minConstructVersion = undefined;
 export const author = "SalmanShh";
 export const website = "https://www.construct.net";
 export const documentation = "https://www.construct.net";
-export const description = "drop-in replacement for Construct 3's built-in Drag & Drop behaviour, designed for developers who need full control over how, when, and by what an object is grabbed and released. Where the built-in behaviour is permanently wired to the mouse or touch, 'DragNDrop' decouples every stage of the drag lifecycle from the input device. Grab and release can be triggered entirely through events";
+export const description = "Event-driven drag & drop: you decide when a drag starts and stops, and the object follows a drag point you update each tick. A drop-in replacement for Construct 3's built-in Drag & Drop, driven through Start Drag / Drop / Set Drag Point actions so a controller, touch gesture, AI routine, or virtual cursor can all drive it. Optional solid push-out, axis lock, break distance, and automatic throw-velocity measurement.";
 export const category = ADDON_CATEGORY.GENERAL;
 
 export const hasDomside = false;
@@ -79,7 +79,9 @@ export const info = {
 };
 
 export const properties = [
-  // Keep the panel simple: this behavior exposes one startup toggle.
+  // A small, simple panel: the common defaults live here, and every one can
+  // still be overridden at runtime through its matching action.
+  // NOTE: this order must match the reads in src/runtime/instance.js.
   {
     type: PROPERTY_TYPE.CHECK,
     id: "enabled",
@@ -88,7 +90,66 @@ export const properties = [
       interpolatable: false,
     },
     name: "Enabled",
-    desc: "Whether the behavior starts enabled.",
+    desc: "Whether the behaviour is active when the layout starts.",
   },
-  
+  {
+    type: PROPERTY_TYPE.FLOAT,
+    id: "followSpeed",
+    options: {
+      initialValue: 0,
+      minValue: 0,
+      interpolatable: false,
+    },
+    name: "Follow Speed",
+    desc: "Max speed in pixels per second the object catches up to the drag point. 0 = instant snap.",
+  },
+  {
+    type: PROPERTY_TYPE.COMBO,
+    id: "directions",
+    options: {
+      initialValue: "free",
+      interpolatable: false,
+      items: [
+        { free: "Free (360)" },
+        { up_down: "Up & Down" },
+        { left_right: "Left & Right" },
+        { four_dir: "4 Directions" },
+        { eight_dir: "8 Directions" },
+      ],
+    },
+    name: "Directions",
+    desc: "Constrains drag movement, 8Direction style: free, single-axis, or snapped to 4 / 8 directions.",
+  },
+  {
+    type: PROPERTY_TYPE.CHECK,
+    id: "solidCollision",
+    options: {
+      initialValue: false,
+      interpolatable: false,
+    },
+    name: "Solid Collision",
+    desc: "When on, the dragged object is pushed out of solids and cannot be dragged through them.",
+  },
+  {
+    type: PROPERTY_TYPE.FLOAT,
+    id: "breakDistance",
+    options: {
+      initialValue: 0,
+      minValue: 0,
+      interpolatable: false,
+    },
+    name: "Break Distance",
+    desc: "Gap to the drag point that auto-ends the drag. 0 disables it.",
+  },
+  {
+    type: PROPERTY_TYPE.COMBO,
+    id: "breakAction",
+    options: {
+      initialValue: "drop",
+      interpolatable: false,
+      items: [{ drop: "Drop" }, { cancel: "Cancel" }],
+    },
+    name: "Break Action",
+    desc: "What a break-distance end does: Drop applies the throw, Cancel ends silently.",
+  },
 ];

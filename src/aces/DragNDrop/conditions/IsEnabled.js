@@ -1,7 +1,7 @@
 export const config = {
   listName: "Is enabled",
   displayText: "Is enabled",
-  description: "True while the behavior is active.",
+  description: "True if the behaviour is active.",
   isTrigger: false,
   isInvertible: true,
   params: [],
