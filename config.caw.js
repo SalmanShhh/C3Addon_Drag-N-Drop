@@ -38,7 +38,11 @@ export const files = {
 };
 
 // categories that are not filled will use the folder name
-export const aceCategories = {};
+export const aceCategories = {
+  dragging: "Dragging & Throw",
+  movement: "Movement & Collision",
+  snapping: "Snapping & Magnet",
+};
 
 export const info = {
   // icon: "icon.svg",

@@ -8,7 +8,9 @@
         "description": "Event-driven drag & drop: you decide when a drag starts and stops, and the object follows a drag point you update each tick. A drop-in replacement for Construct 3's built-in Drag & Drop, driven through Start Drag / Drop / Set Drag Point actions so a controller, touch gesture, AI routine, or virtual cursor can all drive it. Optional solid push-out, axis lock, break distance, and automatic throw-velocity measurement.",
         "help-url": "https://www.construct.net",
         "aceCategories": {
-          "DragNDrop": "DragNDrop"
+          "dragging": "Dragging & Throw",
+          "movement": "Movement & Collision",
+          "snapping": "Snapping & Magnet"
         },
         "properties": {
           "enabled": {
@@ -48,38 +50,6 @@
           }
         },
         "actions": {
-          "AddSnapObject": {
-            "list-name": "Add snap object",
-            "display-text": "Add snap object {0}",
-            "description": "Registers an object as a snap and magnet target by its position. Use a For each loop to add many. Needs a snap radius to take effect.",
-            "params": {
-              "object": {
-                "name": "Object",
-                "desc": "The object instance whose position becomes a snap target."
-              }
-            }
-          },
-          "AddSnapPosition": {
-            "list-name": "Add snap position",
-            "display-text": "Add snap position ({0}, {1})",
-            "description": "Registers a world-space position as a snap and magnet target. Needs a snap radius to take effect.",
-            "params": {
-              "x": {
-                "name": "X",
-                "desc": "World-space X of the snap target."
-              },
-              "y": {
-                "name": "Y",
-                "desc": "World-space Y of the snap target."
-              }
-            }
-          },
-          "ClearSnapTargets": {
-            "list-name": "Clear snap targets",
-            "display-text": "Clear snap targets",
-            "description": "Removes all registered snap positions and snap objects.",
-            "params": {}
-          },
           "Drop": {
             "list-name": "Drop",
             "display-text": "Drop ({0})",
@@ -91,6 +61,70 @@
                 "items": {
                   "release": "Release",
                   "cancel": "Cancel"
+                }
+              }
+            }
+          },
+          "SetDragPoint": {
+            "list-name": "Set drag point",
+            "display-text": "Set drag point to ({0}, {1})",
+            "description": "Updates the world-space point the object follows. Call every tick while dragging.",
+            "params": {
+              "x": {
+                "name": "X",
+                "desc": "World-space X of the drag point (e.g. cursor or touch X)."
+              },
+              "y": {
+                "name": "Y",
+                "desc": "World-space Y of the drag point (e.g. cursor or touch Y)."
+              }
+            }
+          },
+          "SetEnabled": {
+            "list-name": "Set enabled",
+            "display-text": "Set enabled {0}",
+            "description": "Enables or disables the behaviour. Disabling cancels any in-progress drag.",
+            "params": {
+              "enabled": {
+                "name": "Enabled",
+                "desc": "Whether the behaviour is active."
+              }
+            }
+          },
+          "SetThrowVelocity": {
+            "list-name": "Set throw velocity",
+            "display-text": "Set throw velocity to ({0}, {1})",
+            "description": "Overrides the measured throw before a release. Pass 0, 0 to suppress the throw entirely.",
+            "params": {
+              "velX": {
+                "name": "Velocity X",
+                "desc": "X component of the throw velocity to report on the next release."
+              },
+              "velY": {
+                "name": "Velocity Y",
+                "desc": "Y component of the throw velocity to report on the next release."
+              }
+            }
+          },
+          "StartDrag": {
+            "list-name": "Start drag",
+            "display-text": "Start drag at ({0}, {1}) using {2}",
+            "description": "Begins dragging this object toward a drag point. Ignored if already dragging.",
+            "params": {
+              "dragPointX": {
+                "name": "Drag point X",
+                "desc": "World-space X of the point the object will follow."
+              },
+              "dragPointY": {
+                "name": "Drag point Y",
+                "desc": "World-space Y of the point the object will follow."
+              },
+              "grabMode": {
+                "name": "Grab mode",
+                "desc": "Keep the object's offset from the drag point, or centre it on the point.",
+                "items": {
+                  "keep_offset": "Keep offset",
+                  "center_on_point": "Center on point"
                 }
               }
             }
@@ -132,32 +166,6 @@
               }
             }
           },
-          "SetDragPoint": {
-            "list-name": "Set drag point",
-            "display-text": "Set drag point to ({0}, {1})",
-            "description": "Updates the world-space point the object follows. Call every tick while dragging.",
-            "params": {
-              "x": {
-                "name": "X",
-                "desc": "World-space X of the drag point (e.g. cursor or touch X)."
-              },
-              "y": {
-                "name": "Y",
-                "desc": "World-space Y of the drag point (e.g. cursor or touch Y)."
-              }
-            }
-          },
-          "SetEnabled": {
-            "list-name": "Set enabled",
-            "display-text": "Set enabled {0}",
-            "description": "Enables or disables the behaviour. Disabling cancels any in-progress drag.",
-            "params": {
-              "enabled": {
-                "name": "Enabled",
-                "desc": "Whether the behaviour is active."
-              }
-            }
-          },
           "SetFollowSpeed": {
             "list-name": "Set follow speed",
             "display-text": "Set follow speed to {0}",
@@ -168,6 +176,49 @@
                 "desc": "Pixels per second. 0 means the object snaps to the drag point each tick."
               }
             }
+          },
+          "SetSolidCollision": {
+            "list-name": "Set solid collision",
+            "display-text": "Set solid collision {0}",
+            "description": "When on, the dragged object is pushed out of solids each tick and cannot be dragged through them.",
+            "params": {
+              "enabled": {
+                "name": "Enabled",
+                "desc": "Whether solid push-out is active during the drag."
+              }
+            }
+          },
+          "AddSnapObject": {
+            "list-name": "Add snap object",
+            "display-text": "Add snap object {0}",
+            "description": "Registers an object as a snap and magnet target by its position. Use a For each loop to add many. Needs a snap radius to take effect.",
+            "params": {
+              "object": {
+                "name": "Object",
+                "desc": "The object instance whose position becomes a snap target."
+              }
+            }
+          },
+          "AddSnapPosition": {
+            "list-name": "Add snap position",
+            "display-text": "Add snap position ({0}, {1})",
+            "description": "Registers a world-space position as a snap and magnet target. Needs a snap radius to take effect.",
+            "params": {
+              "x": {
+                "name": "X",
+                "desc": "World-space X of the snap target."
+              },
+              "y": {
+                "name": "Y",
+                "desc": "World-space Y of the snap target."
+              }
+            }
+          },
+          "ClearSnapTargets": {
+            "list-name": "Clear snap targets",
+            "display-text": "Clear snap targets",
+            "description": "Removes all registered snap positions and snap objects.",
+            "params": {}
           },
           "SetMagnetStrength": {
             "list-name": "Set magnet strength",
@@ -190,55 +241,6 @@
                 "desc": "Snap and magnet range in pixels. 0 disables snapping."
               }
             }
-          },
-          "SetSolidCollision": {
-            "list-name": "Set solid collision",
-            "display-text": "Set solid collision {0}",
-            "description": "When on, the dragged object is pushed out of solids each tick and cannot be dragged through them.",
-            "params": {
-              "enabled": {
-                "name": "Enabled",
-                "desc": "Whether solid push-out is active during the drag."
-              }
-            }
-          },
-          "SetThrowVelocity": {
-            "list-name": "Set throw velocity",
-            "display-text": "Set throw velocity to ({0}, {1})",
-            "description": "Overrides the measured throw before a release. Pass 0, 0 to suppress the throw entirely.",
-            "params": {
-              "velX": {
-                "name": "Velocity X",
-                "desc": "X component of the throw velocity to report on the next release."
-              },
-              "velY": {
-                "name": "Velocity Y",
-                "desc": "Y component of the throw velocity to report on the next release."
-              }
-            }
-          },
-          "StartDrag": {
-            "list-name": "Start drag",
-            "display-text": "Start drag at ({0}, {1}) using {2}",
-            "description": "Begins dragging this object toward a drag point. Ignored if already dragging.",
-            "params": {
-              "dragPointX": {
-                "name": "Drag point X",
-                "desc": "World-space X of the point the object will follow."
-              },
-              "dragPointY": {
-                "name": "Drag point Y",
-                "desc": "World-space Y of the point the object will follow."
-              },
-              "grabMode": {
-                "name": "Grab mode",
-                "desc": "Keep the object's offset from the drag point, or centre it on the point.",
-                "items": {
-                  "keep_offset": "Keep offset",
-                  "center_on_point": "Center on point"
-                }
-              }
-            }
           }
         },
         "conditions": {
@@ -252,12 +254,6 @@
             "list-name": "Is enabled",
             "display-text": "Is enabled",
             "description": "True if the behaviour is active.",
-            "params": {}
-          },
-          "IsSnapping": {
-            "list-name": "Is snapping",
-            "display-text": "Is snapping",
-            "description": "True while the dragged object is within snap radius of a target (so a drop would snap to it).",
             "params": {}
           },
           "OnDragCancelled": {
@@ -284,6 +280,12 @@
             "description": "Triggered the first tick the dragged object is pushed out of a solid (solid collision must be on).",
             "params": {}
           },
+          "IsSnapping": {
+            "list-name": "Is snapping",
+            "display-text": "Is snapping",
+            "description": "True while the dragged object is within snap radius of a target (so a drop would snap to it).",
+            "params": {}
+          },
           "OnSnapped": {
             "list-name": "On snapped",
             "display-text": "On snapped",
@@ -292,11 +294,6 @@
           }
         },
         "expressions": {
-          "DistanceFromPoint": {
-            "translated-name": "DistanceFromPoint",
-            "description": "Current gap in pixels between the object and the drag point. Grows while blocked by a solid.",
-            "params": {}
-          },
           "DragPointX": {
             "translated-name": "DragPointX",
             "description": "Current world-space X of the drag point.",
@@ -312,21 +309,6 @@
             "description": "Why the drag ended: \"manual\" for a Drop action, \"broke_distance\" for a break-distance end.",
             "params": {}
           },
-          "SnappedObjectUID": {
-            "translated-name": "SnappedObjectUID",
-            "description": "UID of the object snapped to on the last drop, or -1 if the snap was a position or no snap occurred.",
-            "params": {}
-          },
-          "SnapTargetX": {
-            "translated-name": "SnapTargetX",
-            "description": "X of the nearest snap target. While dragging it tracks the nearest target; after a snap it is the snapped position.",
-            "params": {}
-          },
-          "SnapTargetY": {
-            "translated-name": "SnapTargetY",
-            "description": "Y of the nearest snap target. While dragging it tracks the nearest target; after a snap it is the snapped position.",
-            "params": {}
-          },
           "ThrowSpeed": {
             "translated-name": "ThrowSpeed",
             "description": "Magnitude of the throw velocity. Use inside On Dropped.",
@@ -340,6 +322,26 @@
           "ThrowVelocityY": {
             "translated-name": "ThrowVelocityY",
             "description": "Y component of the measured throw velocity. Use inside On Dropped.",
+            "params": {}
+          },
+          "DistanceFromPoint": {
+            "translated-name": "DistanceFromPoint",
+            "description": "Current gap in pixels between the object and the drag point. Grows while blocked by a solid.",
+            "params": {}
+          },
+          "SnappedObjectUID": {
+            "translated-name": "SnappedObjectUID",
+            "description": "UID of the object snapped to on the last drop, or -1 if the snap was a position or no snap occurred.",
+            "params": {}
+          },
+          "SnapTargetX": {
+            "translated-name": "SnapTargetX",
+            "description": "X of the nearest snap target. While dragging it tracks the nearest target; after a snap it is the snapped position.",
+            "params": {}
+          },
+          "SnapTargetY": {
+            "translated-name": "SnapTargetY",
+            "description": "Y of the nearest snap target. While dragging it tracks the nearest target; after a snap it is the snapped position.",
             "params": {}
           }
         }

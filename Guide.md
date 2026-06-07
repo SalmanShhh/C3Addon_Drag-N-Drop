@@ -615,66 +615,96 @@ Event: Tool (DragNDrop) -> Is dragging
 
 Note: The object drops exactly where the player tried to wedge it, with no distance maths in your events.
 
-### 7. Card combat with auto-cancel
+### 7. Claw machine crane
 
-**Scenario:** A card yanked far past the play area should cancel and snap back to hand instead of dropping into nowhere.
-
-```text
-Event: On start of layout
-  Action: Card (DragNDrop) -> Set break distance to 200 (Cancel)
-
-Event: Card (DragNDrop) -> On drag cancelled
-  Action: Card -> Set position to (Card.HandX, Card.HandY)
-```
-
-Note: A break-distance Cancel ends silently and applies no throw, which is exactly what a snap-back wants.
-
-### 8. Horizontal slider knob
-
-**Scenario:** A knob must move along a track in the X direction only and stop at end-stops.
+**Scenario:** An arcade claw floats heavily over the cabinet, stays inside the glass, and drops to release a prize.
 
 ```text
 Event: On start of layout
-  Action: Knob (DragNDrop) -> Set directions to Left & Right
-  Action: Knob (DragNDrop) -> Set solid collision On
+  Action: Claw (DragNDrop) -> Set follow speed to 220
+  Action: Claw (DragNDrop) -> Set solid collision On
+  Action: Claw (DragNDrop) -> Start drag at (Claw.X, Claw.Y) using Center on point
+  // the claw is always under control, drifting heavily within the cabinet frame
 
-Event: On Left mouse button Clicked on Knob
-  Action: Knob (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: Every tick
+  Action: Claw (DragNDrop) -> Set drag point to (Claw.X + Gamepad.Axis(0,0), Claw.Y + Gamepad.Axis(0,1))
 
-Event: Knob (DragNDrop) -> Is dragging
-  Action: Knob (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+Event: On "Drop" button pressed
+  Action: Claw (DragNDrop) -> Drop (Release)
+  // lower-and-grab logic runs from On dropped
 ```
 
-Note: Left & Right holds the knob's Y so it never drifts off its track.
+Note: Follow speed gives the floaty crane feel and solid collision keeps the claw inside the cabinet walls, all without a single Set X / Set Y event.
 
-### 9. Vertical lever
+### 8. Pinball plunger
 
-**Scenario:** A lever should move up and down only.
+**Scenario:** Pulling the plunger straight down and releasing launches the ball, harder the further it was pulled.
 
 ```text
 Event: On start of layout
-  Action: Lever (DragNDrop) -> Set directions to Up & Down
+  Action: Plunger (DragNDrop) -> Set directions to Up & Down
 
-Event: On Left mouse button Clicked on Lever
-  Action: Lever (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: On Left mouse button Clicked on Plunger
+  Action: Plunger (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: Plunger (DragNDrop) -> Is dragging
+  Action: Plunger (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+
+Event: On Left mouse button Released
+  Action: Plunger (DragNDrop) -> Drop (Release)
+Event: Plunger (DragNDrop) -> On dropped
+  Action: Ball (Physics) -> Apply impulse (0, -(Plunger.Y - Plunger.RestY) * 4) at image point 0
+  Action: Plunger -> Set position to (Plunger.X, Plunger.RestY)
 ```
 
-Note: Up & Down is ideal for lifts, sliders, and inventory drawers.
+Note: Up & Down keeps the plunger on its shaft, and the pulled distance (current Y minus rest Y) becomes the launch power, so no throw is needed.
 
-### 10. Eight-direction board piece
+### 9. Operation steady-hand
 
-**Scenario:** A strategy piece should slide along the eight compass directions from its starting square.
+**Scenario:** A wire loop must be guided along a bent rod without touching it, and straying too far off the path aborts the attempt.
 
 ```text
-Event: On Left mouse button Clicked on Piece
-  Action: Piece (DragNDrop) -> Set directions to 8 Directions
-  Action: Piece (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: On start of layout
+  Action: Loop (DragNDrop) -> Set solid collision On
+  Action: Loop (DragNDrop) -> Set break distance to 60 (Cancel)
+  // the rod is Solid; grazing it buzzes, yanking off the path fails the run
 
-Event: Piece (DragNDrop) -> Is dragging
-  Action: Piece (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+Event: On Left mouse button Clicked on Loop
+  Action: Loop (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: Loop (DragNDrop) -> Is dragging
+  Action: Loop (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+
+Event: Loop (DragNDrop) -> On hit solid
+  Action: Audio -> Play "buzz" not looping
+  Action: System -> Subtract 1 from Lives
+
+Event: Loop (DragNDrop) -> On drag cancelled
+  Action: System -> Set GameState to "Failed"
 ```
 
-Note: 8 Directions snaps the drag to diagonal and cardinal rays, which suits grid and board movement.
+Note: On Hit Solid fires once each time the loop grazes the rod, and the break-distance Cancel ends the run silently when the hand strays too far.
+
+### 10. Circuit wiring puzzle
+
+**Scenario:** A wire end is routed in neat 8-direction segments and snaps onto the nearest port to complete a connection.
+
+```text
+Event: On start of layout
+  For each Port
+  Action: WireEnd (DragNDrop) -> Add snap object Port
+  Action: WireEnd (DragNDrop) -> Set snap radius to 30
+  Action: WireEnd (DragNDrop) -> Set magnet strength to 0.6
+
+Event: On Left mouse button Clicked on WireEnd
+  Action: WireEnd (DragNDrop) -> Set directions to 8 Directions
+  Action: WireEnd (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: WireEnd (DragNDrop) -> Is dragging
+  Action: WireEnd (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+
+Event: WireEnd (DragNDrop) -> On snapped
+  Action: System -> Connect WireEnd to object WireEnd.DragNDrop.SnappedObjectUID
+```
+
+Note: 8 Directions keeps the wire running along clean diagonals and cardinals, while snapping locks it onto a port and hands you the port UID.
 
 ### 11. Gamepad drag with a virtual cursor
 
@@ -707,51 +737,77 @@ Event: Mouse -> Cursor is over Object
 
 Note: Because Start Drag is event-driven, the grab gesture is entirely yours to define.
 
-### 13. Snap to a fixed grid
+### 13. Spaceship docking
 
-**Scenario:** A tile editor should snap dragged tiles to a 32px grid.
-
-```text
-Event: On start of layout
-  Action: Tile (DragNDrop) -> Set snap radius to 24
-  Repeat 10 times (X)
-    Repeat 10 times (Y)
-    Action: Tile (DragNDrop) -> Add snap position (loopindex("X") * 32, loopindex("Y") * 32)
-
-Event: Tile (DragNDrop) -> On snapped
-  Action: Tile -> Set animation to "Placed"
-```
-
-Note: Add snap position builds a grid of targets, and the drop snaps the tile to the nearest cell centre.
-
-### 14. Heavy object with follow lag
-
-**Scenario:** A large object should feel weighty and trail behind a fast pointer.
+**Scenario:** A drifting ship is nudged toward a station port, magnetises into the docking slot from a distance, and locks when released.
 
 ```text
 Event: On start of layout
-  Action: Boulder (DragNDrop) -> Set follow speed to 250
+  Action: Ship (DragNDrop) -> Add snap position (Station.DockX, Station.DockY)
+  Action: Ship (DragNDrop) -> Set snap radius to 120
+  Action: Ship (DragNDrop) -> Set magnet strength to 1
+  Action: Ship (DragNDrop) -> Set follow speed to 180
+  // strong long-range pull plus a slow, weighty glide into the dock
 
-Event: On Left mouse button Clicked on Boulder
-  Action: Boulder (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: On Tractor button held
+  Action: Ship (DragNDrop) -> Start drag at (Ship.X, Ship.Y) using Center on point
+Event: Ship (DragNDrop) -> Is dragging
+  Action: Ship (DragNDrop) -> Set drag point to (Reticle.X, Reticle.Y)
 
-Event: Boulder (DragNDrop) -> Is dragging
-  Action: Boulder (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+Event: On Tractor button released
+  Action: Ship (DragNDrop) -> Drop (Release)
+Event: Ship (DragNDrop) -> On snapped
+  Action: System -> Set Docked to 1
 ```
 
-Note: Lower follow speed for heavier feel, raise it toward instant for light, responsive objects.
+Note: A wide radius with magnet strength 1 draws the ship into the dock as it nears, and follow speed gives the heavy, assisted glide.
 
-### 15. Suppress the throw on a precise drop
+### 14. Fishing reel-in
 
-**Scenario:** A placement piece should drop dead with no momentum.
+**Scenario:** The line chases a darting fish toward the boat, but a lunge faster than the line can take snaps it.
 
 ```text
+Event: On start of layout
+  Action: Line (DragNDrop) -> Set follow speed to 300
+  Action: Line (DragNDrop) -> Set break distance to 160 (Cancel)
+  Action: Line (DragNDrop) -> Add snap object Boat
+  Action: Line (DragNDrop) -> Set snap radius to 70
+
+Event: On Fish hooked
+  Action: Line (DragNDrop) -> Start drag at (Fish.X, Fish.Y) using Center on point
+Event: Line (DragNDrop) -> Is dragging
+  Action: Line (DragNDrop) -> Set drag point to (Fish.X, Fish.Y)
+  // the fish darts; the line, capped at 300 px/s, lags behind a hard lunge
+
+Event: On "Net" button pressed
+  Action: Line (DragNDrop) -> Drop (Release)
+Event: Line (DragNDrop) -> On snapped
+  Action: System -> Add 1 to FishCaught
+Event: Line (DragNDrop) -> On drag cancelled
+  Action: System -> Set Text to "The line snapped!"
+```
+
+Note: Follow speed caps the reel, so a hard lunge grows the gap past the break distance and snaps the line, while netting the fish within range of the boat counts as a catch.
+
+### 15. Marionette puppet hand
+
+**Scenario:** A puppet's hand hangs from a string and trails the control point with a soft, swinging lag.
+
+```text
+Event: On start of layout
+  Action: PuppetHand (DragNDrop) -> Set follow speed to 400
+  // a modest follow speed makes the string swing and settle instead of snapping rigidly
+
+Event: On Left mouse button Clicked on Control
+  Action: PuppetHand (DragNDrop) -> Start drag at (PuppetHand.X, PuppetHand.Y) using Center on point
+Event: PuppetHand (DragNDrop) -> Is dragging
+  Action: PuppetHand (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+
 Event: On Left mouse button Released
-  Action: PlacementPiece (DragNDrop) -> Set throw velocity to (0, 0)
-  Action: PlacementPiece (DragNDrop) -> Drop (Release)
+  Action: PuppetHand (DragNDrop) -> Drop (Release)
 ```
 
-Note: Set throw velocity (0, 0) before Drop reports a zero throw to On Dropped.
+Note: Follow speed alone turns a rigid drag into a trailing, marionette-like motion, with no physics behaviour required.
 
 ### 16. Scale a flick into a fast launch
 
@@ -798,31 +854,54 @@ Event: Piece (DragNDrop) -> Is dragging
 
 Note: Is snapping plus SnapTargetX/Y gives live snap feedback without your own distance loop.
 
-### 19. Pause dragging during a cutscene
+### 19. Tug-of-war rope snap
 
-**Scenario:** All dragging should stop cleanly when the game enters a cutscene.
-
-```text
-Event: System -> On "cutscene_start"
-  Action: Draggable (DragNDrop) -> Set enabled No
-
-Event: System -> On "cutscene_end"
-  Action: Draggable (DragNDrop) -> Set enabled Yes
-```
-
-Note: Disabling cancels any in-progress drag immediately, so input states never get stuck mid-drag.
-
-### 20. Swap the active drag object
-
-**Scenario:** Clicking a new object should take over dragging from the current one.
+**Scenario:** Pulling the rope handle works until you yank past the strain limit, when the rope snaps and flings the handle back.
 
 ```text
-Event: On Left mouse button Clicked on NewObject
-  Action: OldObject (DragNDrop) -> Drop (Release)
-  Action: NewObject (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: On start of layout
+  Action: Handle (DragNDrop) -> Set directions to Left & Right
+  Action: Handle (DragNDrop) -> Set break distance to 180 (Drop)
+  // pull horizontally; over-straining past 180px snaps the rope and applies the flick
+
+Event: On Touch start on Handle
+  Action: Handle (DragNDrop) -> Start drag at (Touch.X, Touch.Y) using Keep offset
+Event: Handle (DragNDrop) -> Is dragging
+  Action: Handle (DragNDrop) -> Set drag point to (Touch.X, Touch.Y)
+
+Event: Handle (DragNDrop) -> On dropped
+  Condition: Handle (DragNDrop) -> Compare two values: DropReason = "broke_distance"
+  Action: Handle (Bullet) -> Set speed to Handle.DragNDrop.ThrowSpeed
+  Action: Handle (Bullet) -> Set angle of motion to 180
 ```
 
-Note: Drop first, then Start Drag, because a Start Drag on an already-dragging instance is ignored.
+Note: A break-distance Drop applies the measured throw, so the snapped rope launches the handle with whatever speed the player was pulling at. A normal release (DropReason "manual") just lets go.
+
+### 20. Scrapyard magnet crane
+
+**Scenario:** A scrap crane drags junk that is strongly pulled toward whichever recycling bin is nearest, dropping it in on release.
+
+```text
+Event: On start of layout
+  For each Bin
+  Action: Scrap (DragNDrop) -> Add snap object Bin
+  Action: Scrap (DragNDrop) -> Set snap radius to 200
+  Action: Scrap (DragNDrop) -> Set magnet strength to 0.9
+  // a wide radius and strong pull make junk leap into a nearby bin
+
+Event: On Magnet button held on Scrap
+  Action: Scrap (DragNDrop) -> Start drag at (Scrap.X, Scrap.Y) using Center on point
+Event: Scrap (DragNDrop) -> Is dragging
+  Action: Scrap (DragNDrop) -> Set drag point to (Crane.X, Crane.Y)
+
+Event: On Magnet button released
+  Action: Scrap (DragNDrop) -> Drop (Release)
+Event: Scrap (DragNDrop) -> On snapped
+  Action: System -> Add 10 to Score
+  Action: Scrap -> Destroy
+```
+
+Note: A high magnet strength over a large radius makes sorting feel assisted, and On Snapped both scores the drop and tells you which bin caught it via SnappedObjectUID.
 
 ### 21. Branch on why the drag ended
 
@@ -840,24 +919,28 @@ Event: Piece (DragNDrop) -> On dropped
 
 Note: DropReason is `"manual"` for a Drop action and `"broke_distance"` for a break-distance end.
 
-### 22. Drag to a trash zone
+### 22. Telekinesis gravity gun
 
-**Scenario:** Dropping a file icon over a bin deletes it, otherwise it returns.
+**Scenario:** A psychic power grabs a distant object, hauls it in slowly, and hurls it exactly where the player aims on release.
 
 ```text
-Event: On Left mouse button Clicked on FileIcon
-  Action: FileIcon (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: On "Pull" key pressed
+  Condition: TargetObject (DragNDrop) -> Is dragging (inverted)
+  Action: TargetObject (DragNDrop) -> Set follow speed to 500
+  Action: TargetObject (DragNDrop) -> Start drag at (TargetObject.X, TargetObject.Y) using Center on point
+  // grab whatever the reticle is over and reel it toward the player
 
-Event: FileIcon (DragNDrop) -> On dropped
-  Condition: FileIcon is overlapping Bin
-  Action: FileIcon -> Destroy
+Event: TargetObject (DragNDrop) -> Is dragging
+  Action: TargetObject (DragNDrop) -> Set drag point to (Player.X, Player.Y)
 
-Event: FileIcon (DragNDrop) -> On dropped
-  Condition: FileIcon is NOT overlapping Bin
-  Action: FileIcon -> Set position to (FileIcon.HomeX, FileIcon.HomeY)
+Event: On "Throw" key pressed
+  Action: TargetObject (DragNDrop) -> Set throw velocity to (cos(Player.Angle) * 900, sin(Player.Angle) * 900)
+  Action: TargetObject (DragNDrop) -> Drop (Release)
+Event: TargetObject (DragNDrop) -> On dropped
+  Action: TargetObject (Physics) -> Set velocity to (Self.DragNDrop.ThrowVelocityX, Self.DragNDrop.ThrowVelocityY)
 ```
 
-Note: The drop target is decided in your On Dropped handler, never by the behaviour.
+Note: Set throw velocity overrides the measured flick, so the object launches along the player's aim rather than wherever the drag point happened to be moving.
 
 ### Other game use cases
 

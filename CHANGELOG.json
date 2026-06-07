@@ -13,5 +13,10 @@
     "added": "- Snapping, Magnetism and Homing.\n",
     "changed": "- overhaul on the vocabulary for the ACEs.\n- Exposed a few simple properties\n- Reworked axis lock into 8Direction-style Directions",
     "fixed": ""
+  },
+  "1.1.1.0": {
+    "added": "",
+    "changed": "clean up of ACEs & categorised.",
+    "fixed": ""
   }
 }
