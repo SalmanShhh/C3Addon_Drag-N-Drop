@@ -99,12 +99,13 @@ The panel keeps a small set of the most common defaults. Every one of them can a
 
 | Property | Type | Default | Description |
 | --- | --- | --- | --- |
-| **Enabled** | Boolean | true | Whether the behaviour is active when the layout starts. |
 | **Follow Speed** | Number | 0 | Max speed in pixels per second the object catches up to the drag point. 0 is an instant snap. |
 | **Directions** | Combo | Free (360) | Movement lock: Free, Up & Down, Left & Right, 4 Directions, or 8 Directions. |
 | **Solid Collision** | Boolean | false | When on, the object is pushed out of solids and cannot be dragged through them. |
+| **Allow Sliding** | Boolean | true | With solid collision on: slide along blocking solids (on) or stop dead against them (off). |
 | **Break Distance** | Number | 0 | Gap to the drag point that auto-ends the drag. 0 disables it. |
 | **Break Action** | Combo | Drop | What a break-distance end does: Drop applies the throw, Cancel ends silently. |
+| **Enabled** | Boolean | true | Whether the behaviour is active when the layout starts. Kept last in the panel by convention. |
 
 Snapping and magnetism are not on the panel because they need targets registered through events. They default to off (snap radius 0, magnet strength 0) and are turned on through their actions. See [Snapping, Magnetism, and Homing](#11-snapping-magnetism-and-homing).
 
@@ -229,6 +230,27 @@ Event: Item (DragNDrop) -> On hit solid
 
 **Gotcha:** Push-out is a per-tick correction, not a predictive sweep. Very fast drags at low frame rates may briefly clip thin solids before being corrected. Keep solids reasonably thick relative to drag speed.
 
+### Allow sliding
+
+**Allow sliding** decides what happens when solid collision blocks the object, exactly like the toggle on the built-in 8Direction behaviour. It only matters while solid collision is on.
+
+- **On** (the default): the object is pushed out along the wall, keeping the motion parallel to it. Drag a piece diagonally into a wall and it slides along the surface. This is the natural "slides around obstacles" feel.
+- **Off**: the object stops dead at the last clear spot instead of sliding. Pressing into a wall halts the object completely until the drag point moves somewhere it can follow again.
+
+```text
+Event: On start of layout
+  Action: Pusher (DragNDrop) -> Set solid collision On
+  Action: Pusher (DragNDrop) -> Set allow sliding Off
+  // the object stops hard against walls rather than gliding along them
+
+Event: On Left mouse button Clicked on Pusher
+  Action: Pusher (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: Pusher (DragNDrop) -> Is dragging
+  Action: Pusher (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+```
+
+**Gotcha:** With sliding off, a blocked object holds its previous position, so the gap to the drag point grows just as it does with a solid block. That gap still feeds the break-distance check, so pairing "allow sliding off" with a break distance gives a clean "push until it stops, then tear free" interaction.
+
 ### Break distance
 
 **Break distance** is the maximum gap allowed between the object and the drag point. When solid collision holds the object back (or the cursor simply outruns it), the gap grows. Once it passes the break distance, the drag ends automatically. You choose what "end" means with the Break Action property or the Set break distance action:
@@ -275,12 +297,13 @@ Event: On Left mouse button Released
 
 ## 11. Snapping, Magnetism, and Homing
 
-Snapping lets the object pull toward and lock onto **snap targets** you register. A target is either a fixed world position or an object's position. The whole feature is opt-in: nothing happens until you set a **snap radius** above zero and add at least one target.
+Snapping lets the object pull toward and lock onto **snap targets** you register. A target is either a fixed world position or an object's position. The feature is opt-in: nothing happens until you register at least one target and either set a **snap radius** or switch to overlap mode.
 
-There are two effects, controlled separately:
+There are three things to set, controlled separately:
 
-- **Snap on drop** (always on once a radius is set): when a release ends within the snap radius of a target, the object is placed exactly on the nearest target, the throw is suppressed, and **On Snapped** fires.
-- **Magnetism / homing** (controlled by **magnet strength**): while dragging, the object is pulled toward the nearest in-range target. A strength of 0 means no live pull (snap only happens on drop). A strength up to 1 pulls harder, and the pull grows stronger as the object nears the target.
+- **Snap on drop** (active once snapping is enabled): when a release ends on an active target, the object is placed exactly on it, the throw is suppressed, and **On Snapped** fires.
+- **Snap mode** (how a target counts as active): **Radius** measures the object's distance to the target against the snap radius. **Overlap** is collision-based and uses the **drag position**. See below.
+- **Magnetism / homing** (controlled by **magnet strength**): while dragging, the object is pulled toward the nearest in-range target. A strength of 0 means no live pull (snap only happens on drop). A strength up to 1 pulls harder, and the pull grows stronger as the object nears the target. The magnet is always distance-based, regardless of the snap mode.
 
 ### Registering targets the C3 way
 
@@ -297,6 +320,29 @@ Event: On start of layout
   Action: Item (DragNDrop) -> Set magnet strength to 0.4
   // pieces magnetise toward a slot within 48px and lock on when released near one
 ```
+
+### Snap mode: radius or collision
+
+**Set snap mode** chooses how a target counts as active:
+
+- **Radius (distance)** (the default): a target is active when the **object's** position is within the snap radius of it. Good for "drop near the slot and it locks on."
+- **Overlap (collision)**: a target is active when the **drag position** collides with it, so snapping follows the cursor rather than the lagging object. For an **object** target, this means the drag point is inside the target's collision shape, or the dragged object overlaps the target. For a **position** target, it means the drag point is within the snap radius of the position, or the dragged object covers it. Overlap mode works even with a snap radius of 0 (the radius then only tunes the magnet and the position tolerance).
+
+```text
+Event: On start of layout
+  For each Slot
+  Action: Piece (DragNDrop) -> Add snap object Slot
+  Action: Piece (DragNDrop) -> Set snap mode to Overlap (collision)
+  // the piece snaps to whichever Slot the cursor is actually over,
+  // even if follow speed or solids leave the piece lagging behind
+
+Event: On Left mouse button Clicked on Piece
+  Action: Piece (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: Piece (DragNDrop) -> Is dragging
+  Action: Piece (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+```
+
+Overlap mode is the better fit when the dragged object is large, lags behind the drag point (follow speed or solids), or when you want "drop onto the thing under the cursor" rather than "drop near the thing."
 
 ### Reacting to a snap
 
@@ -318,7 +364,7 @@ Event: Item (DragNDrop) -> Is dragging
   Action: HighlightSlot -> Set visible
 ```
 
-**Gotcha:** Snapping uses the object's position, not the drag point, to find the nearest target. SnappedObjectUID is -1 when the snap was to a fixed position rather than an object, or when no snap occurred. A magnet strength above 0 with no in-range target does nothing, so it is safe to leave on.
+**Gotcha:** In Radius mode snapping is measured from the object's position; in Overlap mode it is measured from the drag position (the cursor). SnappedObjectUID is -1 when the snap was to a fixed position rather than an object, or when no snap occurred. A magnet strength above 0 with no in-range target does nothing, so it is safe to leave on.
 
 ## 12. Actions Reference
 
@@ -342,6 +388,7 @@ Event: Item (DragNDrop) -> Is dragging
 | **Set follow speed** | Sets the maximum speed in pixels per second at which the object catches up to the drag point. 0 is an instant snap. |
 | **Set directions** | Constrains movement to Free, Up & Down, Left & Right, 4 Directions, or 8 Directions. |
 | **Set solid collision** | Turns solid push-out on or off. When on, the object is pushed out of solids each tick and fires On Hit Solid while blocked. |
+| **Set allow sliding** | With solid collision on, chooses whether the object slides along blocking solids (on) or stops dead against them (off). |
 | **Set break distance** | Sets the maximum gap to the drag point before the drag auto-ends, and whether that end is a Drop or a Cancel. 0 disables it. |
 
 ### Snapping and magnetism
@@ -351,7 +398,8 @@ Event: Item (DragNDrop) -> Is dragging
 | **Add snap position** | Registers a world-space position as a snap and magnet target. |
 | **Add snap object** | Registers an object's position as a snap and magnet target. Use a For each loop to add many at once. |
 | **Clear snap targets** | Removes all registered snap positions and snap objects. |
-| **Set snap radius** | Sets the distance within which the object snaps on drop and magnetises while dragging. 0 disables snapping. |
+| **Set snap radius** | Sets the distance within which the object snaps on drop and magnetises while dragging. In Radius mode, 0 disables snapping. |
+| **Set snap mode** | Chooses how a target is detected: Radius (object distance) or Overlap (collision at the drag position). |
 | **Set magnet strength** | Sets the live homing pull from 0 (snap only on drop) to 1 (strong magnetism). |
 
 ### Throw and state
@@ -942,6 +990,121 @@ Event: TargetObject (DragNDrop) -> On dropped
 
 Note: Set throw velocity overrides the measured flick, so the object launches along the player's aim rather than wherever the drag point happened to be moving.
 
+### 23. Chess piece onto the square under the cursor
+
+**Scenario:** A chess piece is larger than a board square, so it should land on whichever square the cursor is over, not the square nearest the piece's centre.
+
+```text
+Event: On start of layout
+  For each BoardSquare
+  Action: ChessPiece (DragNDrop) -> Add snap object BoardSquare
+  Action: ChessPiece (DragNDrop) -> Set snap mode to Overlap (collision)
+  // a piece overlaps several squares at once, so distance from the piece is ambiguous
+
+Event: On Left mouse button Clicked on ChessPiece
+  Action: ChessPiece (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: ChessPiece (DragNDrop) -> Is dragging
+  Action: ChessPiece (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+
+Event: On Left mouse button Released
+  Action: ChessPiece (DragNDrop) -> Drop (Release)
+Event: ChessPiece (DragNDrop) -> On snapped
+  Action: ChessPiece -> Set instance variable TargetSquare to ChessPiece.DragNDrop.SnappedObjectUID
+  // the piece is already centred on the hovered square; validate the move from here
+```
+
+Note: Overlap mode hit-tests the cursor against each square, so the piece snaps to exactly the square under the pointer even though it covers several. No snap radius is needed in overlap mode, and On Snapped places the piece on that square and hands you its UID.
+
+### 24. Trading card onto a play zone
+
+**Scenario:** Drop a card onto whichever large play zone the cursor is inside, even when the card sits near two zones at once.
+
+```text
+Event: On start of layout
+  For each DropZone
+  Action: Card (DragNDrop) -> Add snap object DropZone
+  Action: Card (DragNDrop) -> Set snap mode to Overlap (collision)
+  // detection is by the cursor being inside a zone, never by the card's drifting centre
+
+Event: On Left mouse button Clicked on Card
+  Action: Card (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: Card (DragNDrop) -> Is dragging
+  Action: Card (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+
+Event: Card (DragNDrop) -> Is dragging
+  Condition: Card (DragNDrop) -> Is snapping
+  Action: PlayHint -> Set visible
+  // "valid drop" cue while the cursor is over any zone
+Event: Card (DragNDrop) -> Is dragging
+  Condition: Card (DragNDrop) -> Is snapping (inverted)
+  Action: PlayHint -> Set invisible
+
+Event: On Left mouse button Released
+  Action: Card (DragNDrop) -> Drop (Release)
+Event: Card (DragNDrop) -> On snapped
+  Action: System -> Play card Card into zone Card.DragNDrop.SnappedObjectUID
+Event: Card (DragNDrop) -> On dropped
+  Condition: Card (DragNDrop) -> Is snapping (inverted)
+  Action: Card -> Set position to (Card.HandX, Card.HandY)
+  // released outside every zone, so return to hand
+```
+
+Note: Because a target is active only while the cursor is inside it, the card never snaps to the wrong zone just because its centre drifted toward a neighbour. Is snapping drives the live "valid drop" cue, and SnappedObjectUID names the zone that received the card.
+
+### 25. Merge or craft by dragging one item onto another
+
+**Scenario:** Dragging an item onto another item combines them, where the snap is the two objects overlapping.
+
+```text
+Event: On start of layout
+  For each Item
+  Action: Item (DragNDrop) -> Add snap object Item
+  Action: Item (DragNDrop) -> Set snap mode to Overlap (collision)
+  // every Item can snap onto any other Item it is dragged over (it never snaps to itself)
+
+Event: On Left mouse button Clicked on Item
+  Action: Item (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: Item (DragNDrop) -> Is dragging
+  Action: Item (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+
+Event: On Left mouse button Released
+  Action: Item (DragNDrop) -> Drop (Release)
+Event: Item (DragNDrop) -> On snapped
+  Action: System -> Combine Item with object Item.DragNDrop.SnappedObjectUID
+```
+
+Note: Registering the whole Item type is safe because a piece never snaps to its own instance. In overlap mode an item target counts when the dragged item overlaps it, so dropping one item on top of another fires On Snapped with the other item's UID, ready for a merge or craft.
+
+### 26. Map marker onto an irregular territory
+
+**Scenario:** Drop a marker onto an irregularly shaped territory and register the region the cursor is actually inside, which a circular radius cannot represent, without teleporting the marker to the region's origin.
+
+```text
+Event: On start of layout
+  For each Territory
+  Action: Marker (DragNDrop) -> Add snap object Territory
+  Action: Marker (DragNDrop) -> Set snap mode to Overlap (collision)
+  // territories are irregular collision polygons; a radius around their origin would be wrong
+
+Event: On Left mouse button Clicked on Marker
+  Action: Marker (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: Marker (DragNDrop) -> Is dragging
+  Action: Marker (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+
+Event: On Left mouse button Released
+  Action: Marker (DragNDrop) -> Drop (Release)
+Event: Marker (DragNDrop) -> On snapped
+  Action: System -> Assign marker to territory Marker.DragNDrop.SnappedObjectUID
+  Action: Marker -> Set position to (Marker.DragNDrop.DragPointX, Marker.DragNDrop.DragPointY)
+  // keep the marker where it was dropped; only record which territory it landed on
+Event: Marker (DragNDrop) -> On dropped
+  Condition: Marker (DragNDrop) -> Is snapping (inverted)
+  Action: Marker -> Set position to (Marker.HomeX, Marker.HomeY)
+  // dropped on the sea with no territory under the cursor, so snap back home
+```
+
+Note: Overlap mode tests the cursor against each territory's collision shape, so an irregular region is matched exactly where a radius cannot. A drop normally moves the object onto the target's origin, so here On Snapped repositions the marker to DragPointX/Y to leave it exactly where the player dropped it.
+
 ### Other game use cases
 
 - **Puzzle games:** Drag pieces into place, lock them to directions or keep them out of occupied cells with solids, and snap them home on drop.
@@ -979,8 +1142,10 @@ Drag N Drop exposes its live state in the Construct 3 debugger under a section n
 | `$directions` | Current direction lock mode. |
 | `$followSpeed` | Current follow speed cap in pixels per second. |
 | `$solidCollision` | Whether solid push-out is on. |
+| `$allowSliding` | Whether a blocked object slides along solids (true) or stops dead (false). |
 | `$breakDistance` | Current break distance (0 means disabled). |
-| `$snapRadius` | Current snap and magnet radius (0 means disabled). |
+| `$snapRadius` | Current snap and magnet radius (0 means disabled in Radius mode). |
+| `$snapMode` | How snapping detects a target: `"radius"` or `"overlap"`. |
 | `$magnetStrength` | Current live homing pull (0 to 1). |
 | `$isSnapping` | Whether the object is within snap range of a target right now. |
 | `$throwVelocityX` | Measured throw velocity X (meaningful at drop time). |
@@ -1016,12 +1181,14 @@ drag.SetDragPoint(pointerX, pointerY);
 drag.SetFollowSpeed(600);
 drag.SetDirections(2);        // 0 = free, 1 = up_down, 2 = left_right, 3 = four_dir, 4 = eight_dir
 drag.SetSolidCollision(true);
+drag.SetAllowSliding(false);  // false = stop dead against solids; true = slide along
 drag.SetBreakDistance(80, 0); // action: 0 = drop, 1 = cancel
 
 // snapping and magnetism
 drag.AddSnapPosition(320, 240);
 drag.AddSnapObject(slotInst);  // pass an object instance
 drag.SetSnapRadius(48);
+drag.SetSnapMode(1);           // 0 = radius (distance), 1 = overlap (collision)
 drag.SetMagnetStrength(0.5);   // 0..1
 drag.ClearSnapTargets();
 
@@ -1039,6 +1206,7 @@ Combo index maps for reference:
 - Drop how: `["release", "cancel"]`
 - SetDirections directions: `["free", "up_down", "left_right", "four_dir", "eight_dir"]`
 - SetBreakDistance action: `["drop", "cancel"]`
+- SetSnapMode mode: `["radius", "overlap"]`
 
 ### Listening to events from script
 
@@ -1094,10 +1262,12 @@ Notes:
 - **Drop is ignored when not dragging.** Guard your drop logic with Is dragging if you fire Drop from a broad event such as a global mouse-up.
 - **Follow speed is a pixels-per-second cap, not a percentage.** A value like 0.2 makes the object crawl. Use 0 for instant, or a value in the hundreds-to-thousands range for a responsive feel.
 - **Directions lock relative to the grab point.** 4 Directions and 8 Directions snap the displacement out of where the object was grabbed, so the active direction can change as you swing the pointer around that point.
-- **Snapping needs both a radius and targets.** Set snap radius above 0 and register at least one Add snap position or Add snap object, or nothing snaps. Use a For each loop to register many objects at once.
+- **Snapping needs targets, plus a radius or overlap mode.** Register at least one Add snap position or Add snap object (a For each loop handles many at once). In Radius mode also set a snap radius above 0; Overlap mode works without one.
+- **Use Overlap snap mode to snap by the cursor, not the object.** Radius mode measures from the object, which lags under follow speed or solids. Overlap mode hit-tests the drag position against the target, so the piece snaps to whatever is under the cursor.
 - **Magnet strength is 0 to 1.** 0 snaps only on drop, 1 is a strong live pull. Values outside that range are clamped.
 - **A snap suppresses the throw.** A release that lands on a target reports a zero throw, so do not expect momentum out of a snapped drop.
 - **Solid collision needs the Solid behaviour on the blockers.** Walls and occupied cells must carry an enabled Solid behaviour, or there is nothing to push out of.
+- **Allow sliding only matters with solid collision on.** Leave it on for the natural "slides around walls" feel, or turn it off (8Direction style) to stop the object dead against solids.
 - **Read throw values inside On Dropped.** ThrowVelocityX, ThrowVelocityY, and ThrowSpeed are meaningful at release time. A Cancel produces no throw.
 - **Disabling the behaviour cancels the current drag.** Set enabled No ends an in-progress drag immediately, so re-enable and re-grab if you need to continue.
 - **The dragging state is not saved.** If a save happens mid-drag, the object loads as not dragging, though your panel options and snap targets persist.

@@ -64,6 +64,14 @@ function normalizeEndAction(value) {
   return value === "release" ? "release" : "drop";
 }
 
+function normalizeSnapMode(value) {
+  // ["radius", "overlap"]
+  if (value === 1 || value === "1" || value === "overlap") {
+    return "overlap";
+  }
+  return "radius";
+}
+
 // Constrains a displacement (dx, dy) from the grab origin to the chosen
 // direction set, projecting onto the nearest allowed direction.
 function constrainDelta(dx, dy, mode) {
@@ -174,14 +182,17 @@ export default function (parentClass) {
 
       // The Properties Panel exposes a small set of common defaults; every one
       // can still be overridden at runtime through its action.
+      // NOTE: order must match the properties array in config.caw.js, where
+      // "Enabled" is intentionally kept last.
       const properties = this._getInitProperties() || [];
-      this._enabled = properties[0] !== false;
-      this._followSpeed = Math.max(0, safeNumber(properties[1], 0));
-      this._directions = normalizeDirections(properties[2]);
-      this._solidCollision = !!properties[3];
+      this._followSpeed = Math.max(0, safeNumber(properties[0], 0));
+      this._directions = normalizeDirections(properties[1]);
+      this._solidCollision = !!properties[2];
+      this._allowSliding = properties[3] !== false;
       this._breakDistance = Math.max(0, safeNumber(properties[4], 0));
       this._breakAction =
         normalizeEndAction(properties[5]) === "cancel" ? "cancel" : "drop";
+      this._enabled = properties[6] !== false;
 
       // Drag lifecycle state.
       this._dragging = false;
@@ -218,7 +229,8 @@ export default function (parentClass) {
       // Snap / magnet (homing) state. Disabled until a radius is set.
       this._snapPositions = []; // [{ x, y }]
       this._snapUids = new Set(); // registered target instance UIDs
-      this._snapRadius = 0; // 0 disables snapping and magnetism
+      this._snapRadius = 0; // 0 disables radius-mode snapping and magnetism
+      this._snapMode = "radius"; // "radius" = distance test; "overlap" = collision at the drag point
       this._magnetStrength = 0; // 0 = snap only on drop; >0 = live pull
       this._isSnapping = false; // within snap radius of a target this tick
       this._snapTargetX = 0;
@@ -307,7 +319,8 @@ export default function (parentClass) {
       }
 
       // Magnet / homing: bias the target toward the nearest in-range snap point.
-      if (this._snapRadius > 0 && this._magnetStrength > 0) {
+      // The magnet is always distance-based, regardless of the snap mode.
+      if (this._snapRadius > 0 && this._magnetStrength > 0 && this._hasSnapTargets()) {
         const near = this._findNearestSnap(targetX, targetY);
         if (near && near.dist <= this._snapRadius) {
           const proximity = clamp(1 - near.dist / this._snapRadius, 0, 1);
@@ -316,6 +329,10 @@ export default function (parentClass) {
           targetY += (near.y - targetY) * factor;
         }
       }
+
+      // Remember the last clear position so a no-sliding collision can revert to it.
+      const prevX = this.instance.x;
+      const prevY = this.instance.y;
 
       // Follow speed 0 snaps exactly; otherwise move at most speed*dt toward it.
       if (this._followSpeed > 0 && dt > 0) {
@@ -337,8 +354,15 @@ export default function (parentClass) {
         this.instance.y = targetY;
       }
 
-      // Push out of any solids so the object cannot be dragged through them.
-      const hitSolid = this._solidCollision ? this._resolveSolids() : false;
+      // Keep the object out of solids. With sliding on, it is pushed out along
+      // the wall (keeping tangential motion); with sliding off it stops dead at
+      // the last clear spot, like the 8Direction behaviour.
+      let hitSolid = false;
+      if (this._solidCollision) {
+        hitSolid = this._allowSliding
+          ? this._resolveSolids()
+          : this._blockAgainstSolids(prevX, prevY);
+      }
 
       // Gap between the object and the drag point; grows while a solid blocks.
       this._distanceFromPoint = Math.hypot(
@@ -406,6 +430,18 @@ export default function (parentClass) {
       return pushed;
     }
 
+    // No-sliding mode: if the move landed the object in a solid, revert it to
+    // the last clear position so it stops dead instead of sliding along the wall.
+    // Returns true if a solid blocked the move this tick.
+    _blockAgainstSolids(prevX, prevY) {
+      if (this._findOverlappingSolid()) {
+        this.instance.x = prevX;
+        this.instance.y = prevY;
+        return true;
+      }
+      return false;
+    }
+
     _findOverlappingSolid() {
       const instance = this.instance;
       if (!instance) {
@@ -455,7 +491,12 @@ export default function (parentClass) {
       return null;
     }
 
+    _hasSnapTargets() {
+      return this._snapPositions.length > 0 || this._snapUids.size > 0;
+    }
+
     // Nearest registered snap target to (x, y): { x, y, uid, dist } or null.
+    // Used by the magnet, which is always distance-based.
     _findNearestSnap(x, y) {
       let best = null;
 
@@ -467,6 +508,7 @@ export default function (parentClass) {
       }
 
       for (const uid of this._snapUids) {
+        if (this.instance && uid === this.instance.uid) continue; // never snap to self
         const target = this._getInstanceByUid(uid);
         if (!target) {
           continue;
@@ -482,24 +524,90 @@ export default function (parentClass) {
       return best;
     }
 
+    // Nearest target that is currently a valid snap, honouring the snap mode:
+    // "radius" tests the object's distance to the target; "overlap" tests a
+    // collision at the drag position (the drag point inside a target object, or
+    // the dragged object overlapping it). Returns { x, y, uid, dist } or null.
+    _findActiveSnap() {
+      if (!this.instance || !this._hasSnapTargets()) {
+        return null;
+      }
+      const overlap = this._snapMode === "overlap";
+      // Radius mode needs a radius; overlap mode works without one.
+      if (!overlap && this._snapRadius <= 0) {
+        return null;
+      }
+
+      const refX = overlap ? this._dragPointX : this.instance.x;
+      const refY = overlap ? this._dragPointY : this.instance.y;
+      let best = null;
+      const consider = (tx, ty, uid, active) => {
+        if (!active) return;
+        const dist = Math.hypot(refX - tx, refY - ty);
+        if (!best || dist < best.dist) {
+          best = { x: tx, y: ty, uid, dist };
+        }
+      };
+
+      for (const point of this._snapPositions) {
+        const active = overlap
+          ? this._dragPointWithinRadius(point.x, point.y) ||
+            this._objectContains(point.x, point.y)
+          : Math.hypot(this.instance.x - point.x, this.instance.y - point.y) <=
+            this._snapRadius;
+        consider(point.x, point.y, -1, active);
+      }
+
+      for (const uid of this._snapUids) {
+        if (uid === this.instance.uid) continue; // never snap to self
+        const target = this._getInstanceByUid(uid);
+        if (!target) continue;
+        const tx = safeNumber(target.x, 0);
+        const ty = safeNumber(target.y, 0);
+        const active = overlap
+          ? (typeof target.containsPoint === "function" &&
+              target.containsPoint(this._dragPointX, this._dragPointY)) ||
+            (typeof this.instance.testOverlap === "function" &&
+              this.instance.testOverlap(target))
+          : Math.hypot(this.instance.x - tx, this.instance.y - ty) <=
+            this._snapRadius;
+        consider(tx, ty, uid, active);
+      }
+
+      return best;
+    }
+
+    _dragPointWithinRadius(x, y) {
+      if (this._snapRadius <= 0) return false;
+      return Math.hypot(this._dragPointX - x, this._dragPointY - y) <= this._snapRadius;
+    }
+
+    _objectContains(x, y) {
+      return (
+        typeof this.instance.containsPoint === "function" &&
+        this.instance.containsPoint(x, y)
+      );
+    }
+
     _updateSnapState() {
-      if (this._snapRadius <= 0 || !this.instance) {
-        this._isSnapping = false;
-        this._snapTargetX = this.instance ? this.instance.x : this._snapTargetX;
-        this._snapTargetY = this.instance ? this.instance.y : this._snapTargetY;
+      const active = this._findActiveSnap();
+      if (active) {
+        this._snapTargetX = active.x;
+        this._snapTargetY = active.y;
+        this._isSnapping = true;
         return;
       }
 
-      const near = this._findNearestSnap(this.instance.x, this.instance.y);
-      if (near) {
-        this._snapTargetX = near.x;
-        this._snapTargetY = near.y;
-        this._isSnapping = near.dist <= this._snapRadius;
-      } else {
-        this._snapTargetX = this.instance.x;
-        this._snapTargetY = this.instance.y;
-        this._isSnapping = false;
+      this._isSnapping = false;
+      // Show the nearest target for live feedback (highlighting the drop slot).
+      if (!this.instance) {
+        return;
       }
+      const refX = this._snapMode === "overlap" ? this._dragPointX : this.instance.x;
+      const refY = this._snapMode === "overlap" ? this._dragPointY : this.instance.y;
+      const nearest = this._hasSnapTargets() ? this._findNearestSnap(refX, refY) : null;
+      this._snapTargetX = nearest ? nearest.x : this.instance.x;
+      this._snapTargetY = nearest ? nearest.y : this.instance.y;
     }
 
     // -----------------------------------------------------------------------
@@ -592,10 +700,10 @@ export default function (parentClass) {
       this._snappedUid = -1;
       let didSnap = false;
 
-      // A release that lands within snap range locks onto the nearest target.
-      if (applyThrow && this._snapRadius > 0 && this.instance) {
-        const near = this._findNearestSnap(this.instance.x, this.instance.y);
-        if (near && near.dist <= this._snapRadius) {
+      // A release on an active snap target (radius or overlap) locks onto it.
+      if (applyThrow && this.instance) {
+        const near = this._findActiveSnap();
+        if (near) {
           this.instance.x = near.x;
           this.instance.y = near.y;
           this._snappedUid = near.uid;
@@ -660,6 +768,10 @@ export default function (parentClass) {
       }
     }
 
+    _setAllowSliding(enabled) {
+      this._allowSliding = !!enabled;
+    }
+
     _setBreakDistance(distance, action) {
       this._breakDistance = Math.max(0, safeNumber(distance, 0));
       this._breakAction = normalizeEndAction(action) === "cancel" ? "cancel" : "drop";
@@ -712,13 +824,17 @@ export default function (parentClass) {
 
     _setSnapRadius(radius) {
       this._snapRadius = Math.max(0, safeNumber(radius, 0));
-      if (this._snapRadius <= 0) {
+      if (this._snapRadius <= 0 && this._snapMode !== "overlap") {
         this._isSnapping = false;
       }
     }
 
     _setMagnetStrength(strength) {
       this._magnetStrength = clamp(safeNumber(strength, 0), 0, 1);
+    }
+
+    _setSnapMode(mode) {
+      this._snapMode = normalizeSnapMode(mode);
     }
 
     // -----------------------------------------------------------------------
@@ -738,8 +854,10 @@ export default function (parentClass) {
             { name: "$directions", value: this._directions },
             { name: "$followSpeed", value: this._followSpeed, onedit: (v) => { this._followSpeed = Math.max(0, safeNumber(v, this._followSpeed)); } },
             { name: "$solidCollision", value: this._solidCollision, onedit: (v) => { this._solidCollision = !!v; } },
+            { name: "$allowSliding", value: this._allowSliding, onedit: (v) => { this._allowSliding = !!v; } },
             { name: "$breakDistance", value: this._breakDistance, onedit: (v) => { this._breakDistance = Math.max(0, safeNumber(v, this._breakDistance)); } },
             { name: "$snapRadius", value: this._snapRadius, onedit: (v) => { this._snapRadius = Math.max(0, safeNumber(v, this._snapRadius)); } },
+            { name: "$snapMode", value: this._snapMode },
             { name: "$magnetStrength", value: this._magnetStrength, onedit: (v) => { this._magnetStrength = clamp(safeNumber(v, this._magnetStrength), 0, 1); } },
             { name: "$isSnapping", value: this._isSnapping },
             { name: "$throwVelocityX", value: this._throwVelX },
@@ -766,9 +884,11 @@ export default function (parentClass) {
         followSpeed: this._followSpeed,
         directions: this._directions,
         solidCollision: this._solidCollision,
+        allowSliding: this._allowSliding,
         breakDistance: this._breakDistance,
         breakAction: this._breakAction,
         snapRadius: this._snapRadius,
+        snapMode: this._snapMode,
         magnetStrength: this._magnetStrength,
         snapPositions: this._snapPositions,
         snapUids: Array.from(this._snapUids),
@@ -780,9 +900,11 @@ export default function (parentClass) {
       this._followSpeed = Math.max(0, safeNumber(o?.followSpeed, this._followSpeed));
       this._directions = normalizeDirections(o?.directions);
       this._solidCollision = !!o?.solidCollision;
+      this._allowSliding = o?.allowSliding !== false;
       this._breakDistance = Math.max(0, safeNumber(o?.breakDistance, this._breakDistance));
       this._breakAction = o?.breakAction === "cancel" ? "cancel" : "drop";
       this._snapRadius = Math.max(0, safeNumber(o?.snapRadius, this._snapRadius));
+      this._snapMode = normalizeSnapMode(o?.snapMode);
       this._magnetStrength = clamp(safeNumber(o?.magnetStrength, this._magnetStrength), 0, 1);
       this._snapPositions = Array.isArray(o?.snapPositions)
         ? o.snapPositions.map((p) => ({ x: safeNumber(p?.x, 0), y: safeNumber(p?.y, 0) }))

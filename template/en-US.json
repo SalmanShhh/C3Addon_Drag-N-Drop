@@ -13,10 +13,6 @@
           "snapping": "Snapping & Magnet"
         },
         "properties": {
-          "enabled": {
-            "name": "Enabled",
-            "desc": "Whether the behaviour is active when the layout starts."
-          },
           "followSpeed": {
             "name": "Follow Speed",
             "desc": "Max speed in pixels per second the object catches up to the drag point. 0 = instant snap."
@@ -36,6 +32,10 @@
             "name": "Solid Collision",
             "desc": "When on, the dragged object is pushed out of solids and cannot be dragged through them."
           },
+          "allowSliding": {
+            "name": "Allow Sliding",
+            "desc": "With solid collision on: slide along solids when blocked (on), or stop dead against them (off)."
+          },
           "breakDistance": {
             "name": "Break Distance",
             "desc": "Gap to the drag point that auto-ends the drag. 0 disables it."
@@ -47,6 +47,10 @@
               "drop": "Drop",
               "cancel": "Cancel"
             }
+          },
+          "enabled": {
+            "name": "Enabled",
+            "desc": "Whether the behaviour is active when the layout starts."
           }
         },
         "actions": {
@@ -126,6 +130,17 @@
                   "keep_offset": "Keep offset",
                   "center_on_point": "Center on point"
                 }
+              }
+            }
+          },
+          "SetAllowSliding": {
+            "list-name": "Set allow sliding",
+            "display-text": "Set allow sliding {0}",
+            "description": "With solid collision on: when enabled the object slides along solids; when disabled it stops dead against them.",
+            "params": {
+              "enabled": {
+                "name": "Enabled",
+                "desc": "On slides along blocking solids; Off stops the object dead at the wall."
               }
             }
           },
@@ -228,6 +243,21 @@
               "strength": {
                 "name": "Strength",
                 "desc": "0 = no live pull (snap on drop only); 1 = strong magnetism."
+              }
+            }
+          },
+          "SetSnapMode": {
+            "list-name": "Set snap mode",
+            "display-text": "Set snap mode to {0}",
+            "description": "How snapping detects a target: Radius (object within snap radius) or Overlap (the drag position collides with a target object, or the dragged object overlaps it).",
+            "params": {
+              "mode": {
+                "name": "Mode",
+                "desc": "Radius uses the snap radius; Overlap uses collision at the drag position.",
+                "items": {
+                  "radius": "Radius (distance)",
+                  "overlap": "Overlap (collision)"
+                }
               }
             }
           },

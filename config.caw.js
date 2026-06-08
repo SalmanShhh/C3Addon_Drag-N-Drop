@@ -86,16 +86,7 @@ export const properties = [
   // A small, simple panel: the common defaults live here, and every one can
   // still be overridden at runtime through its matching action.
   // NOTE: this order must match the reads in src/runtime/instance.js.
-  {
-    type: PROPERTY_TYPE.CHECK,
-    id: "enabled",
-    options: {
-      initialValue: true,
-      interpolatable: false,
-    },
-    name: "Enabled",
-    desc: "Whether the behaviour is active when the layout starts.",
-  },
+  // "Enabled" is intentionally kept LAST in this list.
   {
     type: PROPERTY_TYPE.FLOAT,
     id: "followSpeed",
@@ -135,6 +126,16 @@ export const properties = [
     desc: "When on, the dragged object is pushed out of solids and cannot be dragged through them.",
   },
   {
+    type: PROPERTY_TYPE.CHECK,
+    id: "allowSliding",
+    options: {
+      initialValue: true,
+      interpolatable: false,
+    },
+    name: "Allow Sliding",
+    desc: "With solid collision on: slide along solids when blocked (on), or stop dead against them (off).",
+  },
+  {
     type: PROPERTY_TYPE.FLOAT,
     id: "breakDistance",
     options: {
@@ -155,5 +156,15 @@ export const properties = [
     },
     name: "Break Action",
     desc: "What a break-distance end does: Drop applies the throw, Cancel ends silently.",
+  },
+  {
+    type: PROPERTY_TYPE.CHECK,
+    id: "enabled",
+    options: {
+      initialValue: true,
+      interpolatable: false,
+    },
+    name: "Enabled",
+    desc: "Whether the behaviour is active when the layout starts.",
   },
 ];

@@ -18,5 +18,10 @@
     "added": "",
     "changed": "clean up of ACEs & categorised.",
     "fixed": ""
+  },
+  "1.1.2.0": {
+    "added": "Added a \"Snap mode: radius or collision\"",
+    "changed": "",
+    "fixed": ""
   }
 }
