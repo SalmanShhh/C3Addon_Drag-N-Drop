@@ -116,26 +116,6 @@ export const properties = [
     desc: "Constrains drag movement, 8Direction style: free, single-axis, or snapped to 4 / 8 directions.",
   },
   {
-    type: PROPERTY_TYPE.CHECK,
-    id: "solidCollision",
-    options: {
-      initialValue: false,
-      interpolatable: false,
-    },
-    name: "Solid Collision",
-    desc: "When on, the dragged object is pushed out of solids and cannot be dragged through them.",
-  },
-  {
-    type: PROPERTY_TYPE.CHECK,
-    id: "allowSliding",
-    options: {
-      initialValue: true,
-      interpolatable: false,
-    },
-    name: "Allow Sliding",
-    desc: "With solid collision on: slide along solids when blocked (on), or stop dead against them (off).",
-  },
-  {
     type: PROPERTY_TYPE.FLOAT,
     id: "breakDistance",
     options: {
@@ -145,17 +125,6 @@ export const properties = [
     },
     name: "Break Distance",
     desc: "Gap to the drag point that auto-ends the drag. 0 disables it.",
-  },
-  {
-    type: PROPERTY_TYPE.COMBO,
-    id: "breakAction",
-    options: {
-      initialValue: "drop",
-      interpolatable: false,
-      items: [{ drop: "Drop" }, { cancel: "Cancel" }],
-    },
-    name: "Break Action",
-    desc: "What a break-distance end does: Drop applies the throw, Cancel ends silently.",
   },
   {
     type: PROPERTY_TYPE.CHECK,

@@ -1,6 +1,6 @@
 # Drag N Drop Guide
 
-Drag N Drop is a Construct 3 behaviour that is a drop-in replacement for the built-in Drag & Drop, rebuilt so that **you** decide when a drag starts and stops. The built-in behaviour is permanently wired to the mouse or touch. Drag N Drop is driven through events instead, so a controller button, a touch gesture, an AI routine, or a virtual cursor can all start and stop a drag through the same two actions. While an object is dragged it follows a **drag point** you update each tick (usually the cursor or touch position). The behaviour can push the object out of solids, constrain it to a direction set, magnetise it toward snap targets, auto-drop it when it gets pulled too far, and it measures throw velocity for you so flick-to-throw needs no manual tracking. This guide explains how the behaviour works and how to wire every property, action, condition, expression, and debugger field into a real project.
+Drag N Drop is a Construct 3 behaviour that is a drop-in replacement for the built-in Drag & Drop, rebuilt so that **you** decide when a drag starts and stops. The built-in behaviour is permanently wired to the mouse or touch. Drag N Drop is driven through events instead, so a controller button, a touch gesture, an AI routine, or a virtual cursor can all start and stop a drag through the same two actions. While an object is dragged it follows a **drag point** you update each tick (usually the cursor or touch position). The behaviour can constrain the object to a direction set, magnetise it toward snap targets, auto-drop it when it gets pulled too far, and it measures throw velocity for you so flick-to-throw needs no manual tracking. This guide explains how the behaviour works and how to wire every property, action, condition, expression, and debugger field into a real project.
 
 ## Table of Contents
 
@@ -12,7 +12,7 @@ Drag N Drop is a Construct 3 behaviour that is a drop-in replacement for the bui
 6. [The Drag Point](#6-the-drag-point)
 7. [Grab Modes and Follow Speed](#7-grab-modes-and-follow-speed)
 8. [Directions (Movement Lock)](#8-directions-movement-lock)
-9. [Solid Collision and Break Distance](#9-solid-collision-and-break-distance)
+9. [Break Distance](#9-break-distance)
 10. [Throw Velocity](#10-throw-velocity)
 11. [Snapping, Magnetism, and Homing](#11-snapping-magnetism-and-homing)
 12. [Actions Reference](#12-actions-reference)
@@ -30,10 +30,9 @@ Drag N Drop is a Construct 3 behaviour that is a drop-in replacement for the bui
 - **Gamepad and controller-driven UI**: Start and stop dragging from a controller button. The drag point comes from a virtual cursor or joystick, with no mouse anywhere in the chain.
 - **Hold-to-grab interactions**: Adventure, puzzle, and VR-style interfaces where picking something up is a held gesture you control, not an instant click.
 - **Physics-sandbox and throwing games**: Throw velocity is measured automatically, so flick-to-throw needs no per-frame accumulator.
-- **Drag-through-walls prevention**: Inventory grids, board games, and tile editors where pieces must respect solid panels or occupied cells. Solid push-out handles it with one toggle.
 - **Snap-to-grid and magnetic slots**: Inventory slots, jigsaw boards, and node editors where pieces pull toward and lock onto targets. Snapping and magnetism handle it with a radius and a strength.
-- **Tear-free interactions**: Drag a stuck or snagged object until the gap grows, then have it automatically drop free. Break distance gives this with no distance maths.
-- **Puzzle games at scale**: Dozens of draggable pieces, each respecting direction locks and solids, all sharing one behaviour configuration.
+- **Yank-to-release interactions**: Give the object a follow speed so it lags, then flick the cursor away and it auto-drops or cancels once the gap grows past a break distance, with no distance maths.
+- **Puzzle games at scale**: Dozens of draggable pieces, each respecting direction locks, all sharing one behaviour configuration.
 - **Accessibility-driven input**: Switch-access, eye-gaze, or dwell-click systems can start and stop drags from any event without touching the object's drag logic.
 
 ## 2. Core Concepts
@@ -42,14 +41,14 @@ Drag N Drop is a Construct 3 behaviour that is a drop-in replacement for the bui
 
 The built-in Drag & Drop behaviour bakes the mouse and touch connection into its engine. The moment you need gamepad dragging, a hold-to-pick-up gesture, a custom drag handle, or a VR pointer, you fall back to hand-built logic: per-frame `Set X` and `Set Y` events, instance variables tracking velocity for a throw, and a per-object "is dragging" boolean copied across every draggable type. Stopping an object being dragged through a wall, snapping it to a grid, or tearing a stuck object free all mean writing distance and overlap maths by hand every frame.
 
-Drag N Drop replaces that with two actions, **Start Drag** and **Drop**, that you fire from any event, plus a **Set Drag Point** action you call each tick to steer the object. Pushing out of solids is one toggle. Snapping to targets is a radius plus a list of snap points. Auto-dropping a stuck object is one action with a distance and a choice. Throw velocity is measured for you and returned when the object drops.
+Drag N Drop replaces that with two actions, **Start Drag** and **Drop**, that you fire from any event, plus a **Set Drag Point** action you call each tick to steer the object. Snapping to targets is a radius plus a list of snap points. Auto-dropping an object that gets yanked too far is one action with a distance and a choice. Throw velocity is measured for you and returned when the object drops.
 
 ### Key design decisions
 
 - **You own the drag point, Drag N Drop reads it.** The behaviour never reads the mouse or any input device. You call Set Drag Point each tick. The object follows that point. If you never set it, the object does not move while dragged.
 - **Start and stop are events, never automatic.** Start Drag begins a drag, Drop ends it. Hover detection, click radius, and hold gestures are your event-sheet conditions.
 - **One action covers both ways to end a drag.** Drop takes a *How* choice. **Release** fires On Dropped and applies the measured throw. **Cancel** ends the drag silently with no throw and fires On Drag Cancelled.
-- **Push-out and break distance work together.** Turn on solid collision and the dragged object cannot pass through solids. Set a break distance and, when the gap to the drag point grows past it, the object automatically drops or cancels.
+- **Break distance auto-ends a yanked drag.** Set a break distance and, when the gap between the object and the drag point grows past it (because a slow follow speed left the object lagging behind a fast cursor), the object automatically drops or cancels.
 - **Snapping is opt-in and target-driven.** Nothing snaps until you set a snap radius and register snap targets (positions or objects). With a magnet strength above zero, the object also homes toward in-range targets while dragging.
 - **Throw is always measured, never auto-applied.** The behaviour hands the result to On Dropped as ThrowVelocityX, ThrowVelocityY, and ThrowSpeed. You read the values, scale them, and route them to Physics, Bullet, or your own system.
 - **The behaviour does not check drop targets.** Whether the object landed somewhere valid is decided in your On Dropped handler, though snapping can place it on the nearest registered target for you.
@@ -62,7 +61,6 @@ Drag N Drop replaces that with two actions, **Start Drag** and **Drop**, that yo
 | **Grab Mode** | Chosen when the drag starts: keep the object's offset from the drag point, or centre the object on it. |
 | **Follow Speed** | How quickly the object catches up to the drag point. 0 snaps instantly, higher values add a smooth lag. |
 | **Directions** | A movement lock, 8Direction style: free, a single axis, or snapped to 4 or 8 directions. |
-| **Solid Collision** | When on, the dragged object is pushed out of solids each tick and cannot be dragged through them. |
 | **Break Distance** | The maximum gap allowed between the object and the drag point. Exceeding it auto-drops or auto-cancels the drag. |
 | **Snap Target** | A registered position or object the dragged object can magnetise toward and snap onto. |
 | **Throw Velocity** | The release velocity measured from recent drag-point movement, handed back on drop for you to apply. |
@@ -70,7 +68,7 @@ Drag N Drop replaces that with two actions, **Start Drag** and **Drop**, that yo
 ## 3. Project Setup
 
 1. Add the **Drag N Drop** behaviour to any world object (a Sprite, 9-patch, Tiled Background, and so on).
-2. In the Properties Panel, leave **Enabled** checked and set any of Follow Speed, Directions, Solid Collision, or Break Distance you want as defaults. Everything has a working default, so you can leave them all alone.
+2. In the Properties Panel, leave **Enabled** checked and set any of Follow Speed, Directions, or Break Distance you want as defaults. Everything has a working default, so you can leave them all alone.
 3. Start a drag from any event with **Start Drag**, passing the world-space point you want the object to follow.
 4. Each tick while dragging, call **Set Drag Point** with the current cursor or touch position.
 5. End the drag with **Drop**, choosing Release (apply the throw) or Cancel (no throw).
@@ -91,7 +89,7 @@ Event: On Left mouse button Released
   // ends the drag and reports the measured throw
 ```
 
-That is the whole loop: one action to start, one to steer each tick, one to stop. Everything else (directions, solids, break distance, snapping, throw scaling) is optional and layered on top.
+That is the whole loop: one action to start, one to steer each tick, one to stop. Everything else (directions, break distance, snapping, throw scaling) is optional and layered on top.
 
 ## 4. Behaviour Properties
 
@@ -101,10 +99,7 @@ The panel keeps a small set of the most common defaults. Every one of them can a
 | --- | --- | --- | --- |
 | **Follow Speed** | Number | 0 | Max speed in pixels per second the object catches up to the drag point. 0 is an instant snap. |
 | **Directions** | Combo | Free (360) | Movement lock: Free, Up & Down, Left & Right, 4 Directions, or 8 Directions. |
-| **Solid Collision** | Boolean | false | When on, the object is pushed out of solids and cannot be dragged through them. |
-| **Allow Sliding** | Boolean | true | With solid collision on: slide along blocking solids (on) or stop dead against them (off). |
 | **Break Distance** | Number | 0 | Gap to the drag point that auto-ends the drag. 0 disables it. |
-| **Break Action** | Combo | Drop | What a break-distance end does: Drop applies the throw, Cancel ends silently. |
 | **Enabled** | Boolean | true | Whether the behaviour is active when the layout starts. Kept last in the panel by convention. |
 
 Snapping and magnetism are not on the panel because they need targets registered through events. They default to off (snap radius 0, magnet strength 0) and are turned on through their actions. See [Snapping, Magnetism, and Homing](#11-snapping-magnetism-and-homing).
@@ -187,15 +182,15 @@ Event: On start of layout
 
 ## 8. Directions (Movement Lock)
 
-**Directions** constrains how the dragged object is allowed to move, in the same style as the 8Direction and VectorCursor behaviours. The constraint is measured from the position where the drag began, so the object slides along allowed directions out of its grab point.
+**Directions** constrains how the dragged object is allowed to move, in the same style as the 8Direction and VectorCursor behaviours. Each tick it rounds the object's **current movement** toward the drag point to the nearest allowed direction, so the object travels in clean axis or diagonal lines while still reaching the cursor.
 
 | Option | Movement |
 | --- | --- |
 | **Free (360)** | No constraint. The object follows the drag point freely. This is the default. |
-| **Up & Down** | Vertical only. The object's X is held at its grab position. |
-| **Left & Right** | Horizontal only. The object's Y is held at its grab position. |
-| **4 Directions** | Movement snaps to the nearest cardinal direction (up, down, left, right) from the grab point. |
-| **8 Directions** | Movement snaps to the nearest of eight compass directions (the cardinals plus the diagonals) from the grab point. |
+| **Up & Down** | Vertical only. The object moves up and down toward the drag point and its X is held. |
+| **Left & Right** | Horizontal only. The object moves left and right toward the drag point and its Y is held. |
+| **4 Directions** | Each tick's movement is rounded to the nearest cardinal direction (up, down, left, right), so the object steps toward the cursor along horizontal and vertical lines. |
+| **8 Directions** | Each tick's movement is rounded to the nearest of eight compass directions (the cardinals plus the diagonals), so the object tracks the cursor along clean 45-degree lines. |
 
 ```text
 Event: On start of layout
@@ -205,73 +200,34 @@ Event: On start of layout
 Event: On Left mouse button Clicked on Token
   Action: Token (DragNDrop) -> Set directions to 8 Directions
   Action: Token (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
-  // the token slides along the nearest of 8 rays from where it was grabbed
+  // the token chases the cursor but only ever moves along 8 compass directions
 ```
 
-**Gotcha:** Setting directions while a drag is already in progress re-captures the object's current position as the new origin, so the lock takes effect from where the object is now. With 4 Directions and 8 Directions, the object commits to whichever ray the drag point leans toward, so the active direction can switch as the player swings the pointer around the grab point.
+**Gotcha:** Because it is the movement that is rounded (not the absolute offset from where you grabbed), 4 and 8 Directions reach the cursor by stepping along their allowed lines rather than locking to a single ray. With a follow speed of 0 the object closes that gap almost instantly; raise follow speed for a visible, steady glide along the direction lines.
 
-## 9. Solid Collision and Break Distance
+## 9. Break Distance
 
-These two options are designed to be used together to give a natural "drag until it snags, then tear it free" feel with no manual distance code.
+**Break distance** is the maximum gap allowed between the object and the drag point. The gap grows when the object cannot keep up with the drag point, which happens when you set a **follow speed** (so the object lags) and then move the cursor faster than the object can follow. Once the gap passes the break distance, the drag ends automatically.
 
-### Solid collision
-
-Turn on **solid collision** and the dragged object is pushed out of solids each tick and cannot be dragged through them. The behaviour finds objects that carry an enabled **Solid** behaviour, resolves the overlap with a minimum-translation push, and fires **On Hit Solid** the first tick a push-out happens. The object lags behind the drag point while a solid blocks it, sliding along free space instead of passing through.
-
-```text
-Event: On start of layout
-  Action: Item (DragNDrop) -> Set solid collision On
-  // occupied inventory cells carry the Solid behaviour; the item slides around them
-
-Event: Item (DragNDrop) -> On hit solid
-  Action: Audio -> Play "bump" not looping
-  // optional feedback when the item is blocked
-```
-
-**Gotcha:** Push-out is a per-tick correction, not a predictive sweep. Very fast drags at low frame rates may briefly clip thin solids before being corrected. Keep solids reasonably thick relative to drag speed.
-
-### Allow sliding
-
-**Allow sliding** decides what happens when solid collision blocks the object, exactly like the toggle on the built-in 8Direction behaviour. It only matters while solid collision is on.
-
-- **On** (the default): the object is pushed out along the wall, keeping the motion parallel to it. Drag a piece diagonally into a wall and it slides along the surface. This is the natural "slides around obstacles" feel.
-- **Off**: the object stops dead at the last clear spot instead of sliding. Pressing into a wall halts the object completely until the drag point moves somewhere it can follow again.
-
-```text
-Event: On start of layout
-  Action: Pusher (DragNDrop) -> Set solid collision On
-  Action: Pusher (DragNDrop) -> Set allow sliding Off
-  // the object stops hard against walls rather than gliding along them
-
-Event: On Left mouse button Clicked on Pusher
-  Action: Pusher (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
-Event: Pusher (DragNDrop) -> Is dragging
-  Action: Pusher (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
-```
-
-**Gotcha:** With sliding off, a blocked object holds its previous position, so the gap to the drag point grows just as it does with a solid block. That gap still feeds the break-distance check, so pairing "allow sliding off" with a break distance gives a clean "push until it stops, then tear free" interaction.
-
-### Break distance
-
-**Break distance** is the maximum gap allowed between the object and the drag point. When solid collision holds the object back (or the cursor simply outruns it), the gap grows. Once it passes the break distance, the drag ends automatically. You choose what "end" means with the Break Action property or the Set break distance action:
+The **Set break distance** action also chooses what "end" means (there is no panel row for it):
 
 - **Drop** applies the throw and fires On Dropped with DropReason `"broke_distance"`.
 - **Cancel** ends silently and fires On Drag Cancelled.
 
-A break distance of 0 (the default) disables this, and the object simply lags indefinitely and snaps back when the cursor returns.
+A break distance of 0 (the default) disables this, and the object simply lags indefinitely and snaps back when the cursor slows. The panel **Break Distance** value uses Drop; switch to Cancel through the action when you need it.
 
 ```text
 Event: On start of layout
-  Action: Crate (DragNDrop) -> Set solid collision On
-  Action: Crate (DragNDrop) -> Set break distance to 80 (Drop)
-  // wedge the crate against a wall, keep pulling, and once the gap passes 80px it drops where it stuck
+  Action: Crate (DragNDrop) -> Set follow speed to 300
+  Action: Crate (DragNDrop) -> Set break distance to 120 (Drop)
+  // the crate follows slowly; flick the cursor far past it and once the gap passes 120px it drops
 
 Event: Crate (DragNDrop) -> On dropped
   Condition: Crate (DragNDrop) -> Compare two values: DropReason = "broke_distance"
-  Action: Crate -> Set animation to "Wedged"
+  Action: Crate -> Set animation to "Dropped"
 ```
 
-**Gotcha:** Break distance measures the gap to the drag point, not the distance the object has travelled. With solid collision off and no blocker, the object usually keeps up with the drag point and the break never triggers unless the pointer moves faster than the follow speed allows.
+**Gotcha:** Break distance measures the gap to the drag point, not the distance the object has travelled. With a follow speed of 0 the object snaps onto the drag point every tick, so the gap stays near zero and the break never triggers. Break distance only does something once a follow speed lets the object fall behind a fast cursor.
 
 ## 10. Throw Velocity
 
@@ -334,7 +290,7 @@ Event: On start of layout
   Action: Piece (DragNDrop) -> Add snap object Slot
   Action: Piece (DragNDrop) -> Set snap mode to Overlap (collision)
   // the piece snaps to whichever Slot the cursor is actually over,
-  // even if follow speed or solids leave the piece lagging behind
+  // even if a slow follow speed leaves the piece lagging behind
 
 Event: On Left mouse button Clicked on Piece
   Action: Piece (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
@@ -342,7 +298,7 @@ Event: Piece (DragNDrop) -> Is dragging
   Action: Piece (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
 ```
 
-Overlap mode is the better fit when the dragged object is large, lags behind the drag point (follow speed or solids), or when you want "drop onto the thing under the cursor" rather than "drop near the thing."
+Overlap mode is the better fit when the dragged object is large, lags behind the drag point (a slow follow speed), or when you want "drop onto the thing under the cursor" rather than "drop near the thing."
 
 ### Reacting to a snap
 
@@ -387,8 +343,6 @@ Event: Item (DragNDrop) -> Is dragging
 | --- | --- |
 | **Set follow speed** | Sets the maximum speed in pixels per second at which the object catches up to the drag point. 0 is an instant snap. |
 | **Set directions** | Constrains movement to Free, Up & Down, Left & Right, 4 Directions, or 8 Directions. |
-| **Set solid collision** | Turns solid push-out on or off. When on, the object is pushed out of solids each tick and fires On Hit Solid while blocked. |
-| **Set allow sliding** | With solid collision on, chooses whether the object slides along blocking solids (on) or stops dead against them (off). |
 | **Set break distance** | Sets the maximum gap to the drag point before the drag auto-ends, and whether that end is a Drop or a Cancel. 0 disables it. |
 
 ### Snapping and magnetism
@@ -426,7 +380,6 @@ These are the non-trigger state checks. The trigger conditions are listed separa
 | **On drag started** | Fires when Start Drag succeeds. Read DragPointX and DragPointY for the grab point. |
 | **On dropped** | Fires when a drag ends via Drop (Release) or a break-distance Drop. Read ThrowVelocityX, ThrowVelocityY, ThrowSpeed, and DropReason. |
 | **On drag cancelled** | Fires when a drag ends via Drop (Cancel) or a break-distance Cancel. No throw is applied. Read DropReason. |
-| **On hit solid** | Fires the first tick the object is pushed out of a solid (solid collision must be on). Read DistanceFromPoint for the current gap. |
 | **On snapped** | Fires after a release that lands within snap radius of a target, alongside On Dropped. Read SnapTargetX, SnapTargetY, and SnappedObjectUID. |
 
 ## 15. Expressions Reference
@@ -435,7 +388,7 @@ These are the non-trigger state checks. The trigger conditions are listed separa
 | --- | --- | --- |
 | **DragPointX** | number | Current world-space X of the drag point. |
 | **DragPointY** | number | Current world-space Y of the drag point. |
-| **DistanceFromPoint** | number | Current gap in pixels between the object and the drag point. Grows while the object is blocked by a solid, and drives the break-distance check. |
+| **DistanceFromPoint** | number | Current gap in pixels between the object and the drag point. Grows while the object lags behind a fast cursor, and drives the break-distance check. |
 | **SnapTargetX** | number | X of the nearest snap target. While dragging it tracks the nearest target, and after a snap it is the snapped position. |
 | **SnapTargetY** | number | Y of the nearest snap target. While dragging it tracks the nearest target, and after a snap it is the snapped position. |
 | **SnappedObjectUID** | number | UID of the object snapped to on the last drop, or -1 if the snap was a position or no snap occurred. |
@@ -484,22 +437,23 @@ Event: VectorCursor -> On Interact Released
 
 Tip: There is no coupling code. Drag N Drop consumes the coordinates as plain numbers, so mouse, gamepad, and AI input are interchangeable.
 
-### System C. Constraints (directions and solids)
+### System C. Constraining movement with directions
 
-Keeps movement predictable with a direction lock and solid push-out.
+Keeps movement predictable with a direction lock.
 
-- Scenario: A rail piece should slide left and right only, and stop at barriers.
+- Scenario: A rail piece should slide left and right only.
 
 ```text
 Event: On start of layout
   Action: RailPiece (DragNDrop) -> Set directions to Left & Right
-  Action: RailPiece (DragNDrop) -> Set solid collision On
 
-Event: RailPiece (DragNDrop) -> On hit solid
-  Action: RailPiece -> Set animation frame to 1
+Event: On Left mouse button Clicked on RailPiece
+  Action: RailPiece (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: RailPiece (DragNDrop) -> Is dragging
+  Action: RailPiece (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
 ```
 
-Tip: Directions and solid collision combine cleanly. The object tracks only along its allowed directions and halts at solids in the way.
+Tip: Left & Right holds the piece's Y, so it tracks the cursor only along its rail. Clamp the X yourself in On Dropped or each tick if the rail has end-stops.
 
 ### System D. Snapping and magnetism
 
@@ -522,15 +476,15 @@ Event: Item (DragNDrop) -> On snapped
 
 Tip: Use a magnet strength of 0 if you want a clean snap on drop with no live pull, and raise it for a sticky, assisted feel.
 
-### System E. Tear-free release with break distance
+### System E. Yank-to-release with break distance
 
-Lets a snagged object drop free once the gap grows past a limit.
+Lets a lagging object drop free once the cursor outruns it past a limit.
 
-- Scenario: A heavy object dragged against a wall should drop where it got wedged.
+- Scenario: A heavy object that follows slowly should drop where it fell behind when flicked away.
 
 ```text
 Event: On start of layout
-  Action: Anvil (DragNDrop) -> Set solid collision On
+  Action: Anvil (DragNDrop) -> Set follow speed to 250
   Action: Anvil (DragNDrop) -> Set break distance to 100 (Drop)
 
 Event: Anvil (DragNDrop) -> On dropped
@@ -538,7 +492,7 @@ Event: Anvil (DragNDrop) -> On dropped
   Action: Audio -> Play "thud" not looping
 ```
 
-Tip: Pair break distance with solid collision so the gap only grows when something physically blocks the object.
+Tip: Break distance needs a follow speed to be meaningful. Without one the object snaps onto the cursor each tick and the gap never grows.
 
 ### System F. Throw measurement and routing
 
@@ -613,20 +567,27 @@ Event: ItemCard (DragNDrop) -> On dropped
 
 Note: On Snapped places the card on the nearest slot for you; the inverted Is snapping check handles the "dropped in empty space" case.
 
-### 4. Inventory grid with solid cells
+### 4. Dock icon reorder
 
-**Scenario:** Occupied inventory cells block a dragged item so it cannot be pushed into a filled slot.
+**Scenario:** A dock icon slides along the bar and snaps to the nearest slot when released.
 
 ```text
-Event: On Left mouse button Clicked on Item
-  Action: Item (DragNDrop) -> Set solid collision On
-  Action: Item (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: On start of layout
+  Action: Icon (DragNDrop) -> Set directions to Left & Right
+  Repeat 6 times
+  Action: Icon (DragNDrop) -> Add snap position (80 + loopindex * 64, 540)
+  Action: Icon (DragNDrop) -> Set snap radius to 32
 
-Event: Item (DragNDrop) -> Is dragging
-  Action: Item (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+Event: On Left mouse button Clicked on Icon
+  Action: Icon (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: Icon (DragNDrop) -> Is dragging
+  Action: Icon (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+
+Event: Icon (DragNDrop) -> On snapped
+  Action: System -> Reorder the dock by Icon.X
 ```
 
-Note: Give occupied cells the Solid behaviour. The item slides along free space instead of overlapping a filled cell.
+Note: Left & Right keeps the icon on the bar, and the row of snap positions locks it into the nearest slot on release.
 
 ### 5. Physics sandbox throw
 
@@ -645,23 +606,23 @@ Event: Crate (DragNDrop) -> On dropped
 
 Note: Natural flick-throws with no accumulator code, because the velocity was measured for you.
 
-### 6. Tear-free tool drag
+### 6. Yank a heavy object free
 
-**Scenario:** A heavy tool dragged against a wall should force-drop where it wedged once the player keeps pulling.
+**Scenario:** A heavy crate that follows slowly should let go where it fell behind when the player flicks the cursor away.
 
 ```text
 Event: On start of layout
-  Action: Tool (DragNDrop) -> Set solid collision On
-  Action: Tool (DragNDrop) -> Set break distance to 90 (Drop)
+  Action: Crate (DragNDrop) -> Set follow speed to 220
+  Action: Crate (DragNDrop) -> Set break distance to 100 (Drop)
 
-Event: On Left mouse button Clicked on Tool
-  Action: Tool (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: On Left mouse button Clicked on Crate
+  Action: Crate (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
 
-Event: Tool (DragNDrop) -> Is dragging
-  Action: Tool (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+Event: Crate (DragNDrop) -> Is dragging
+  Action: Crate (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
 ```
 
-Note: The object drops exactly where the player tried to wedge it, with no distance maths in your events.
+Note: The slow follow speed lets the cursor outrun the crate; a hard flick grows the gap past 100px and drops it where it lagged, with no distance maths in your events.
 
 ### 7. Claw machine crane
 
@@ -670,19 +631,20 @@ Note: The object drops exactly where the player tried to wedge it, with no dista
 ```text
 Event: On start of layout
   Action: Claw (DragNDrop) -> Set follow speed to 220
-  Action: Claw (DragNDrop) -> Set solid collision On
   Action: Claw (DragNDrop) -> Start drag at (Claw.X, Claw.Y) using Center on point
-  // the claw is always under control, drifting heavily within the cabinet frame
+  // the claw is always under control, drifting heavily as the joystick steers it
 
 Event: Every tick
-  Action: Claw (DragNDrop) -> Set drag point to (Claw.X + Gamepad.Axis(0,0), Claw.Y + Gamepad.Axis(0,1))
+  Action: System -> Set ClawX to clamp(ClawX + Gamepad.Axis(0,0), CabinetLeft, CabinetRight)
+  Action: System -> Set ClawY to clamp(ClawY + Gamepad.Axis(0,1), CabinetTop, CabinetBottom)
+  Action: Claw (DragNDrop) -> Set drag point to (ClawX, ClawY)
 
 Event: On "Drop" button pressed
   Action: Claw (DragNDrop) -> Drop (Release)
   // lower-and-grab logic runs from On dropped
 ```
 
-Note: Follow speed gives the floaty crane feel and solid collision keeps the claw inside the cabinet walls, all without a single Set X / Set Y event.
+Note: Follow speed gives the floaty crane feel; clamp the drag point to the cabinet bounds so the claw stays inside the glass, all without a single Set X / Set Y on the claw.
 
 ### 8. Pinball plunger
 
@@ -706,30 +668,25 @@ Event: Plunger (DragNDrop) -> On dropped
 
 Note: Up & Down keeps the plunger on its shaft, and the pulled distance (current Y minus rest Y) becomes the launch power, so no throw is needed.
 
-### 9. Operation steady-hand
+### 9. Yank-to-cancel a card play
 
-**Scenario:** A wire loop must be guided along a bent rod without touching it, and straying too far off the path aborts the attempt.
+**Scenario:** A card dragged toward the board snaps back to hand if the player yanks it far too fast.
 
 ```text
 Event: On start of layout
-  Action: Loop (DragNDrop) -> Set solid collision On
-  Action: Loop (DragNDrop) -> Set break distance to 60 (Cancel)
-  // the rod is Solid; grazing it buzzes, yanking off the path fails the run
+  Action: Card (DragNDrop) -> Set follow speed to 500
+  Action: Card (DragNDrop) -> Set break distance to 160 (Cancel)
 
-Event: On Left mouse button Clicked on Loop
-  Action: Loop (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
-Event: Loop (DragNDrop) -> Is dragging
-  Action: Loop (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+Event: On Left mouse button Clicked on Card
+  Action: Card (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: Card (DragNDrop) -> Is dragging
+  Action: Card (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
 
-Event: Loop (DragNDrop) -> On hit solid
-  Action: Audio -> Play "buzz" not looping
-  Action: System -> Subtract 1 from Lives
-
-Event: Loop (DragNDrop) -> On drag cancelled
-  Action: System -> Set GameState to "Failed"
+Event: Card (DragNDrop) -> On drag cancelled
+  Action: Card -> Set position to (Card.HandX, Card.HandY)
 ```
 
-Note: On Hit Solid fires once each time the loop grazes the rod, and the break-distance Cancel ends the run silently when the hand strays too far.
+Note: A break-distance Cancel ends silently and applies no throw, so a hard flick past 160px snaps the card back to hand instead of dropping it.
 
 ### 10. Circuit wiring puzzle
 
@@ -1107,9 +1064,9 @@ Note: Overlap mode tests the cursor against each territory's collision shape, so
 
 ### Other game use cases
 
-- **Puzzle games:** Drag pieces into place, lock them to directions or keep them out of occupied cells with solids, and snap them home on drop.
+- **Puzzle games:** Drag pieces into place, lock them to directions, and snap them home on drop.
 - **Match-three games:** Drag tiles with 4 Directions and a short break distance Cancel so an over-pull snaps back instead of misfiring a swap.
-- **Tower defense games:** Drag a placement preview around the map with solid collision so it cannot overlap blocked terrain, snapping to valid build nodes.
+- **Tower defense games:** Drag a placement preview around the map, snapping to valid build nodes and validating the spot in On Dropped.
 - **Platformers:** Use Up & Down or Left & Right for moving platforms, grappling anchors, and levers that must move on a single rail.
 - **Roguelikes:** Drag relic cards and ability tokens with custom grab offsets, routing the measured throw into flick-to-equip gestures.
 - **Card games:** Build hand management and table dragging, using throw velocity for flick-to-discard and break distance for snap-back.
@@ -1118,14 +1075,14 @@ Note: Overlap mode tests the cursor against each territory's collision shape, so
 - **HUD and menu design:** Move panels, windows, and toolbars with the same behaviour that powers gameplay objects, with follow speed for a soft feel.
 - **Rhythm games:** Drag tempo sliders and note lanes with a single-axis direction lock so they only move along their intended direction.
 - **Crafting games:** Drag ingredients into a recipe grid with snap positions, and confirm combinations on snap.
-- **Management and strategy games:** Move units and build previews with solid collision so they respect occupied tiles, snapping to grid cells.
+- **Management and strategy games:** Move units and build previews, snapping to grid cells and confirming the move in On Dropped.
 - **VR-style and 3D-pointer interfaces:** Drive the drag point from a VR or ray pointer, with hold-to-grab gestures and no mouse coupling.
-- **Board games:** Drag pieces with 8 Directions that snap to squares and respect solid panels.
-- **Tile and level editors:** Drag tiles that snap to a grid of positions and refuse to overlap locked regions via solids.
+- **Board games:** Drag pieces with 8 Directions that snap to squares using overlap mode.
+- **Tile and level editors:** Drag tiles that snap to a grid of positions for clean placement.
 - **Tutorials and QA tools:** Replay recorded drags through the same actions so automated runs match real input exactly.
 - **Accessibility-first games:** Start and stop drags from switch, dwell, or eye-gaze input without changing the object's drag logic.
 - **Slingshot and launch games:** Pull back, release, and read ThrowSpeed and the throw components to launch a projectile.
-- **Inventory-heavy RPGs:** Dozens of draggable items sharing one configuration, each magnetising to slots and respecting solids and direction locks.
+- **Inventory-heavy RPGs:** Dozens of draggable items sharing one configuration, each magnetising to slots and respecting direction locks.
 - **Sandbox toys and creativity apps:** Let players grab, arrange, and fling objects freely, with optional snapping to keep layouts tidy.
 
 ## 18. C3 Debugger
@@ -1141,8 +1098,6 @@ Drag N Drop exposes its live state in the Construct 3 debugger under a section n
 | `$distanceFromPoint` | Live gap in pixels between the object and the drag point. |
 | `$directions` | Current direction lock mode. |
 | `$followSpeed` | Current follow speed cap in pixels per second. |
-| `$solidCollision` | Whether solid push-out is on. |
-| `$allowSliding` | Whether a blocked object slides along solids (true) or stops dead (false). |
 | `$breakDistance` | Current break distance (0 means disabled). |
 | `$snapRadius` | Current snap and magnet radius (0 means disabled in Radius mode). |
 | `$snapMode` | How snapping detects a target: `"radius"` or `"overlap"`. |
@@ -1151,7 +1106,7 @@ Drag N Drop exposes its live state in the Construct 3 debugger under a section n
 | `$throwVelocityX` | Measured throw velocity X (meaningful at drop time). |
 | `$throwVelocityY` | Measured throw velocity Y (meaningful at drop time). |
 
-The enabled, drag point, follow speed, solid collision, break distance, snap radius, and magnet strength fields are editable in the debugger, so you can tune the feel of a drag while it is live without changing your events.
+The enabled, drag point, follow speed, break distance, snap radius, and magnet strength fields are editable in the debugger, so you can tune the feel of a drag while it is live without changing your events.
 
 ## 19. Scripting
 
@@ -1180,8 +1135,6 @@ drag.SetDragPoint(pointerX, pointerY);
 // options
 drag.SetFollowSpeed(600);
 drag.SetDirections(2);        // 0 = free, 1 = up_down, 2 = left_right, 3 = four_dir, 4 = eight_dir
-drag.SetSolidCollision(true);
-drag.SetAllowSliding(false);  // false = stop dead against solids; true = slide along
 drag.SetBreakDistance(80, 0); // action: 0 = drop, 1 = cancel
 
 // snapping and magnetism
@@ -1216,7 +1169,6 @@ Each trigger is dispatched by its condition name, so add a listener with that na
 drag.addEventListener("OnDragStarted", () => console.log("drag started"));
 drag.addEventListener("OnDropped", () => console.log("dropped"));
 drag.addEventListener("OnDragCancelled", () => console.log("cancelled"));
-drag.addEventListener("OnHitSolid", () => console.log("hit a solid"));
 drag.addEventListener("OnSnapped", () => console.log("snapped to a target"));
 ```
 
@@ -1228,7 +1180,6 @@ function driveDrag(runtime) {
   const drag = inst.behaviors["Drag N Drop"];
 
   drag.SetFollowSpeed(800);
-  drag.SetSolidCollision(true);
   drag.SetBreakDistance(120, 0); // auto-drop past 120px
 
   // register every slot as a magnet target
@@ -1261,13 +1212,12 @@ Notes:
 - **Start Drag is ignored while already dragging.** To switch objects, call Drop on the current one first. There is no force-grab action by design.
 - **Drop is ignored when not dragging.** Guard your drop logic with Is dragging if you fire Drop from a broad event such as a global mouse-up.
 - **Follow speed is a pixels-per-second cap, not a percentage.** A value like 0.2 makes the object crawl. Use 0 for instant, or a value in the hundreds-to-thousands range for a responsive feel.
-- **Directions lock relative to the grab point.** 4 Directions and 8 Directions snap the displacement out of where the object was grabbed, so the active direction can change as you swing the pointer around that point.
+- **Directions round the movement, not the grab offset.** 4 Directions and 8 Directions snap each tick's movement toward the cursor, so the object steps toward the pointer along clean axis or diagonal lines and still reaches it, rather than locking to a single ray.
 - **Snapping needs targets, plus a radius or overlap mode.** Register at least one Add snap position or Add snap object (a For each loop handles many at once). In Radius mode also set a snap radius above 0; Overlap mode works without one.
-- **Use Overlap snap mode to snap by the cursor, not the object.** Radius mode measures from the object, which lags under follow speed or solids. Overlap mode hit-tests the drag position against the target, so the piece snaps to whatever is under the cursor.
+- **Use Overlap snap mode to snap by the cursor, not the object.** Radius mode measures from the object, which lags under a slow follow speed. Overlap mode hit-tests the drag position against the target, so the piece snaps to whatever is under the cursor.
 - **Magnet strength is 0 to 1.** 0 snaps only on drop, 1 is a strong live pull. Values outside that range are clamped.
 - **A snap suppresses the throw.** A release that lands on a target reports a zero throw, so do not expect momentum out of a snapped drop.
-- **Solid collision needs the Solid behaviour on the blockers.** Walls and occupied cells must carry an enabled Solid behaviour, or there is nothing to push out of.
-- **Allow sliding only matters with solid collision on.** Leave it on for the natural "slides around walls" feel, or turn it off (8Direction style) to stop the object dead against solids.
+- **Break distance needs a follow speed.** It only fires once the object lags behind the drag point. With follow speed 0 the object snaps onto the cursor every tick, so the gap never grows.
 - **Read throw values inside On Dropped.** ThrowVelocityX, ThrowVelocityY, and ThrowSpeed are meaningful at release time. A Cancel produces no throw.
 - **Disabling the behaviour cancels the current drag.** Set enabled No ends an in-progress drag immediately, so re-enable and re-grab if you need to continue.
 - **The dragging state is not saved.** If a save happens mid-drag, the object loads as not dragging, though your panel options and snap targets persist.

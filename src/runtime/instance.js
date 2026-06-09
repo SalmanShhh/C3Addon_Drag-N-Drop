@@ -3,8 +3,6 @@ import AddonTypeMap from "../../template/addonTypeMap.js";
 
 // How many recent drag-point velocity samples feed the throw average.
 const MAX_HISTORY = 8;
-// Number of push-out passes per tick when resolving overlapping solids.
-const MAX_SOLID_PASSES = 4;
 const QUARTER_TURN = Math.PI / 4;
 
 // ---------------------------------------------------------------------------
@@ -72,19 +70,21 @@ function normalizeSnapMode(value) {
   return "radius";
 }
 
-// Constrains a displacement (dx, dy) from the grab origin to the chosen
-// direction set, projecting onto the nearest allowed direction.
-function constrainDelta(dx, dy, mode) {
+// Rounds a movement step (dx, dy) to the chosen direction set by snapping the
+// step's direction and projecting onto it. This rounds the way the drag is
+// actually moving this tick, so the object travels in 4 / 8 direction lines.
+function constrainStep(dx, dy, mode) {
   switch (mode) {
     case "up_down":
       return [0, dy];
     case "left_right":
       return [dx, 0];
     case "four_dir":
-      // Keep whichever cardinal axis the drag leans toward most.
+      // Move along whichever cardinal axis this step leans toward most.
       return Math.abs(dx) >= Math.abs(dy) ? [dx, 0] : [0, dy];
     case "eight_dir": {
-      // Snap the displacement angle to the nearest 45 degrees, then project.
+      if (dx === 0 && dy === 0) return [0, 0];
+      // Snap the step's angle to the nearest 45 degrees, then project onto it.
       const snapped = Math.round(Math.atan2(dy, dx) / QUARTER_TURN) * QUARTER_TURN;
       const cos = Math.cos(snapped);
       const sin = Math.sin(snapped);
@@ -94,81 +94,6 @@ function constrainDelta(dx, dy, mode) {
     default:
       return [dx, dy];
   }
-}
-
-// `inst.behaviors` may be a keyed object or an iterable depending on the
-// runtime surface, so flatten either form into a plain array of behaviors.
-function getBehaviorList(inst) {
-  const behaviors = inst?.behaviors;
-  if (!behaviors) {
-    return [];
-  }
-  if (Array.isArray(behaviors)) {
-    return behaviors;
-  }
-  if (typeof behaviors[Symbol.iterator] === "function") {
-    return Array.from(behaviors);
-  }
-  return Object.values(behaviors);
-}
-
-// An object blocks a drag only if it carries an enabled Solid behaviour.
-function hasEnabledSolid(inst) {
-  for (const behavior of getBehaviorList(inst)) {
-    const name = behavior?.behaviorType?.name ?? behavior?.behavior?.name;
-    if (name === "Solid") {
-      // Treat a missing isEnabled flag as enabled (older surfaces).
-      if (behavior.isEnabled === undefined || behavior.isEnabled) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-// Axis-aligned bounds for a minimum-translation-vector push-out. Falls back to
-// position + size when getBoundingBox() is unavailable.
-function getBounds(inst) {
-  if (inst && typeof inst.getBoundingBox === "function") {
-    const box = inst.getBoundingBox();
-    if (box) {
-      return {
-        left: safeNumber(box.left, 0),
-        top: safeNumber(box.top, 0),
-        right: safeNumber(box.right, 0),
-        bottom: safeNumber(box.bottom, 0),
-      };
-    }
-  }
-  const x = safeNumber(inst?.x, 0);
-  const y = safeNumber(inst?.y, 0);
-  const width = safeNumber(inst?.width, 0);
-  const height = safeNumber(inst?.height, 0);
-  return { left: x, top: y, right: x + width, bottom: y + height };
-}
-
-// Minimum-translation vector that separates objectBox from otherBox, or null
-// when they no longer overlap.
-function minimumTranslation(objectBox, otherBox) {
-  const pushRight = otherBox.right - objectBox.left; // move object +x
-  const pushLeft = objectBox.right - otherBox.left; // move object -x
-  const pushDown = otherBox.bottom - objectBox.top; // move object +y
-  const pushUp = objectBox.bottom - otherBox.top; // move object -y
-
-  if (pushRight <= 0 || pushLeft <= 0 || pushDown <= 0 || pushUp <= 0) {
-    return null; // a separating gap exists on some axis: no real overlap
-  }
-
-  const candidates = [
-    { axis: "x", amount: pushRight, direction: 1 },
-    { axis: "x", amount: pushLeft, direction: -1 },
-    { axis: "y", amount: pushDown, direction: 1 },
-    { axis: "y", amount: pushUp, direction: -1 },
-  ];
-
-  return candidates.reduce((best, candidate) =>
-    candidate.amount < best.amount ? candidate : best
-  );
 }
 
 export default function (parentClass) {
@@ -187,12 +112,11 @@ export default function (parentClass) {
       const properties = this._getInitProperties() || [];
       this._followSpeed = Math.max(0, safeNumber(properties[0], 0));
       this._directions = normalizeDirections(properties[1]);
-      this._solidCollision = !!properties[2];
-      this._allowSliding = properties[3] !== false;
-      this._breakDistance = Math.max(0, safeNumber(properties[4], 0));
-      this._breakAction =
-        normalizeEndAction(properties[5]) === "cancel" ? "cancel" : "drop";
-      this._enabled = properties[6] !== false;
+      this._breakDistance = Math.max(0, safeNumber(properties[2], 0));
+      this._enabled = properties[3] !== false;
+
+      // Break action is action-driven only (no panel row); defaults to drop.
+      this._breakAction = "drop";
 
       // Drag lifecycle state.
       this._dragging = false;
@@ -205,13 +129,8 @@ export default function (parentClass) {
       this._grabOffsetX = 0;
       this._grabOffsetY = 0;
 
-      // Direction-lock baseline (object position captured when the lock applies).
-      this._lockOriginX = 0;
-      this._lockOriginY = 0;
-
-      // Live measurements.
+      // Live measurement.
       this._distanceFromPoint = 0;
-      this._wasPushingSolid = false;
 
       // Throw measurement + override.
       this._throwVelX = 0;
@@ -226,7 +145,7 @@ export default function (parentClass) {
       // Why the last drag ended: "manual" or "broke_distance".
       this._dropReason = "manual";
 
-      // Snap / magnet (homing) state. Disabled until a radius is set.
+      // Snap / magnet (homing) state. Disabled until a radius is set (radius mode).
       this._snapPositions = []; // [{ x, y }]
       this._snapUids = new Set(); // registered target instance UIDs
       this._snapRadius = 0; // 0 disables radius-mode snapping and magnetism
@@ -305,17 +224,20 @@ export default function (parentClass) {
       // Per-instance dt respects any timeScale the developer set on the object.
       const dt = safeNumber(this.instance.dt, 0);
 
-      // Resolve the target from the drag point, the grab offset and direction lock.
+      // Resolve the target from the drag point and the grab offset.
       let targetX = this._dragPointX + this._grabOffsetX;
       let targetY = this._dragPointY + this._grabOffsetY;
+
+      // Direction lock: round THIS tick's movement (from the object toward the
+      // target) to the allowed direction set, so the drag travels in 4/8 lines.
       if (this._directions !== "free") {
-        const [cdx, cdy] = constrainDelta(
-          targetX - this._lockOriginX,
-          targetY - this._lockOriginY,
+        const [cdx, cdy] = constrainStep(
+          targetX - this.instance.x,
+          targetY - this.instance.y,
           this._directions
         );
-        targetX = this._lockOriginX + cdx;
-        targetY = this._lockOriginY + cdy;
+        targetX = this.instance.x + cdx;
+        targetY = this.instance.y + cdy;
       }
 
       // Magnet / homing: bias the target toward the nearest in-range snap point.
@@ -329,10 +251,6 @@ export default function (parentClass) {
           targetY += (near.y - targetY) * factor;
         }
       }
-
-      // Remember the last clear position so a no-sliding collision can revert to it.
-      const prevX = this.instance.x;
-      const prevY = this.instance.y;
 
       // Follow speed 0 snaps exactly; otherwise move at most speed*dt toward it.
       if (this._followSpeed > 0 && dt > 0) {
@@ -354,28 +272,12 @@ export default function (parentClass) {
         this.instance.y = targetY;
       }
 
-      // Keep the object out of solids. With sliding on, it is pushed out along
-      // the wall (keeping tangential motion); with sliding off it stops dead at
-      // the last clear spot, like the 8Direction behaviour.
-      let hitSolid = false;
-      if (this._solidCollision) {
-        hitSolid = this._allowSliding
-          ? this._resolveSolids()
-          : this._blockAgainstSolids(prevX, prevY);
-      }
-
-      // Gap between the object and the drag point; grows while a solid blocks.
+      // Gap between the object and the drag point; grows when the object cannot
+      // keep up (a slow follow speed and a fast-moving drag point).
       this._distanceFromPoint = Math.hypot(
         this.instance.x - this._dragPointX,
         this.instance.y - this._dragPointY
       );
-
-      // On Hit Solid fires on the first tick a push-out occurs (rising edge),
-      // after the gap is current so DistanceFromPoint reads correctly.
-      if (hitSolid && !this._wasPushingSolid) {
-        this._trigger("OnHitSolid");
-      }
-      this._wasPushingSolid = hitSolid;
 
       // Live snap state for the Is Snapping condition and SnapTarget expressions.
       this._updateSnapState();
@@ -394,89 +296,6 @@ export default function (parentClass) {
       if (this._breakDistance > 0 && this._distanceFromPoint > this._breakDistance) {
         this._endDrag(this._breakAction !== "cancel", "broke_distance");
       }
-    }
-
-    // -----------------------------------------------------------------------
-    // Solid push-out (minimum-translation-vector, documented overlap tests)
-    // -----------------------------------------------------------------------
-
-    // Resolves overlaps via iterated minimum-translation pushes; returns true
-    // if the object was pushed out of at least one solid this tick.
-    _resolveSolids() {
-      let pushed = false;
-
-      for (let pass = 0; pass < MAX_SOLID_PASSES; pass += 1) {
-        const solid = this._findOverlappingSolid();
-        if (!solid) {
-          break;
-        }
-
-        const translation = minimumTranslation(
-          getBounds(this.instance),
-          getBounds(solid)
-        );
-        if (!translation) {
-          break;
-        }
-
-        if (translation.axis === "x") {
-          this.instance.x += translation.direction * translation.amount;
-        } else {
-          this.instance.y += translation.direction * translation.amount;
-        }
-        pushed = true;
-      }
-
-      return pushed;
-    }
-
-    // No-sliding mode: if the move landed the object in a solid, revert it to
-    // the last clear position so it stops dead instead of sliding along the wall.
-    // Returns true if a solid blocked the move this tick.
-    _blockAgainstSolids(prevX, prevY) {
-      if (this._findOverlappingSolid()) {
-        this.instance.x = prevX;
-        this.instance.y = prevY;
-        return true;
-      }
-      return false;
-    }
-
-    _findOverlappingSolid() {
-      const instance = this.instance;
-      if (!instance) {
-        return null;
-      }
-
-      // Prefer the documented helper when present: it returns an overlapping
-      // Solid-behaviour instance directly.
-      if (typeof instance.testOverlapSolid === "function") {
-        const solid = instance.testOverlapSolid();
-        if (solid) {
-          return solid;
-        }
-      }
-
-      // Fall back to scanning instances for an enabled Solid behaviour.
-      if (typeof instance.testOverlap === "function" && this.runtime?.objects) {
-        for (const objectType of this.runtime.objects) {
-          if (typeof objectType?.getAllInstances !== "function") {
-            continue;
-          }
-          for (const other of objectType.getAllInstances()) {
-            if (
-              other &&
-              other !== instance &&
-              hasEnabledSolid(other) &&
-              instance.testOverlap(other)
-            ) {
-              return other;
-            }
-          }
-        }
-      }
-
-      return null;
     }
 
     // -----------------------------------------------------------------------
@@ -664,14 +483,9 @@ export default function (parentClass) {
         this._grabOffsetY = this.instance.y - dpY;
       }
 
-      // Direction lock holds whichever line the object started on.
-      this._lockOriginX = this.instance.x;
-      this._lockOriginY = this.instance.y;
-
       this._dragging = true;
       this._dropReason = "manual";
       this._distanceFromPoint = 0;
-      this._wasPushingSolid = false;
       this._hasThrowOverride = false;
       this._throwVelX = 0;
       this._throwVelY = 0;
@@ -728,7 +542,6 @@ export default function (parentClass) {
       this._throwSpeed = Math.hypot(this._throwVelX, this._throwVelY);
 
       this._dragging = false;
-      this._wasPushingSolid = false;
       this._hasThrowOverride = false;
       this._isSnapping = false;
       this._resetThrowSampling();
@@ -754,22 +567,6 @@ export default function (parentClass) {
 
     _setDirections(directions) {
       this._directions = normalizeDirections(directions);
-      // Re-baseline so a mid-drag change holds the object's current line.
-      if (this.instance) {
-        this._lockOriginX = safeNumber(this.instance.x, this._lockOriginX);
-        this._lockOriginY = safeNumber(this.instance.y, this._lockOriginY);
-      }
-    }
-
-    _setSolidCollision(enabled) {
-      this._solidCollision = !!enabled;
-      if (!this._solidCollision) {
-        this._wasPushingSolid = false;
-      }
-    }
-
-    _setAllowSliding(enabled) {
-      this._allowSliding = !!enabled;
     }
 
     _setBreakDistance(distance, action) {
@@ -788,7 +585,6 @@ export default function (parentClass) {
       if (!next && this._dragging) {
         // Disabling cancels any in-progress drag silently (no event per spec).
         this._dragging = false;
-        this._wasPushingSolid = false;
         this._hasThrowOverride = false;
         this._isSnapping = false;
         this._resetThrowSampling();
@@ -853,8 +649,6 @@ export default function (parentClass) {
             { name: "$distanceFromPoint", value: this._distanceFromPoint },
             { name: "$directions", value: this._directions },
             { name: "$followSpeed", value: this._followSpeed, onedit: (v) => { this._followSpeed = Math.max(0, safeNumber(v, this._followSpeed)); } },
-            { name: "$solidCollision", value: this._solidCollision, onedit: (v) => { this._solidCollision = !!v; } },
-            { name: "$allowSliding", value: this._allowSliding, onedit: (v) => { this._allowSliding = !!v; } },
             { name: "$breakDistance", value: this._breakDistance, onedit: (v) => { this._breakDistance = Math.max(0, safeNumber(v, this._breakDistance)); } },
             { name: "$snapRadius", value: this._snapRadius, onedit: (v) => { this._snapRadius = Math.max(0, safeNumber(v, this._snapRadius)); } },
             { name: "$snapMode", value: this._snapMode },
@@ -878,13 +672,11 @@ export default function (parentClass) {
     }
 
     _saveToJson() {
-      // The dragging state is intentionally not saved; only options persist.
+      // The dragging state is not saved; only the scalar options persist.
       return {
         enabled: this._enabled,
         followSpeed: this._followSpeed,
         directions: this._directions,
-        solidCollision: this._solidCollision,
-        allowSliding: this._allowSliding,
         breakDistance: this._breakDistance,
         breakAction: this._breakAction,
         snapRadius: this._snapRadius,
@@ -899,8 +691,6 @@ export default function (parentClass) {
       this._enabled = o?.enabled !== false;
       this._followSpeed = Math.max(0, safeNumber(o?.followSpeed, this._followSpeed));
       this._directions = normalizeDirections(o?.directions);
-      this._solidCollision = !!o?.solidCollision;
-      this._allowSliding = o?.allowSliding !== false;
       this._breakDistance = Math.max(0, safeNumber(o?.breakDistance, this._breakDistance));
       this._breakAction = o?.breakAction === "cancel" ? "cancel" : "drop";
       this._snapRadius = Math.max(0, safeNumber(o?.snapRadius, this._snapRadius));
@@ -912,7 +702,6 @@ export default function (parentClass) {
       this._snapUids = new Set(Array.isArray(o?.snapUids) ? o.snapUids : []);
       // A save made mid-drag loads as not dragging.
       this._dragging = false;
-      this._wasPushingSolid = false;
       this._hasThrowOverride = false;
       this._isSnapping = false;
       this._snappedUid = -1;

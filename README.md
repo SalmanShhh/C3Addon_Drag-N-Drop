@@ -1,16 +1,11 @@
 <img src="./src/icon.svg" width="100" /><br>
 # Drag N Drop
 <i>Event-driven drag & drop: you decide when a drag starts and stops, and the object follows a drag point you update each tick. A drop-in replacement for Construct 3's built-in Drag & Drop, driven through Start Drag / Drop / Set Drag Point actions so a controller, touch gesture, AI routine, or virtual cursor can all drive it. Optional solid push-out, axis lock, break distance, and automatic throw-velocity measurement.</i> <br>
-### Version 1.1.2.0
+### Version 1.2.0.0
 
-[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_Drag-N-Drop/releases/download/salmanshh_dragndrop-1.1.2.0.c3addon/salmanshh_dragndrop-1.1.2.0.c3addon)
+[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_Drag-N-Drop/releases/download/salmanshh_dragndrop-1.2.0.0.c3addon/salmanshh_dragndrop-1.2.0.0.c3addon)
 <br>
 <sub> [See all releases](https://github.com/SalmanShhh/C3Addon_Drag-N-Drop/releases) </sub> <br>
-
-#### What's New in 1.1.2.0
-- **Added:** Added a "Snap mode: radius or collision"
-
-<sub>[View full changelog](#changelog)</sub>
 
 ---
 <b><u>Author:</u></b> SalmanShh <br>
@@ -40,6 +35,9 @@ npm run dev
 ```
 
 ## Examples Files
+| Description | Download |
+| --- | --- |
+| Drag Example | [<img src="https://placehold.co/120x30/4493f8/FFF?text=Download&font=montserrat" width="120"/>](https://github.com/SalmanShhh/C3Addon_Drag-N-Drop/raw/refs/heads/main/examples/Drag%20Example.c3p) |
 
 ---
 ## Properties
@@ -47,10 +45,7 @@ npm run dev
 | --- | --- | --- |
 | Follow Speed | Max speed in pixels per second the object catches up to the drag point. 0 = instant snap. | float |
 | Directions | Constrains drag movement, 8Direction style: free, single-axis, or snapped to 4 / 8 directions. | combo |
-| Solid Collision | When on, the dragged object is pushed out of solids and cannot be dragged through them. | check |
-| Allow Sliding | With solid collision on: slide along solids when blocked (on), or stop dead against them (off). | check |
 | Break Distance | Gap to the drag point that auto-ends the drag. 0 disables it. | float |
-| Break Action | What a break-distance end does: Drop applies the throw, Cancel ends silently. | combo |
 | Enabled | Whether the behaviour is active when the layout starts. | check |
 
 
@@ -63,11 +58,9 @@ npm run dev
 | Set enabled | Enables or disables the behaviour. Disabling cancels any in-progress drag. | Enabled             *(boolean)* <br> |
 | Set throw velocity | Overrides the measured throw before a release. Pass 0, 0 to suppress the throw entirely. | Velocity X             *(number)* <br>Velocity Y             *(number)* <br> |
 | Start drag | Begins dragging this object toward a drag point. Ignored if already dragging. | Drag point X             *(number)* <br>Drag point Y             *(number)* <br>Grab mode             *(combo)* <br> |
-| Set allow sliding | With solid collision on: when enabled the object slides along solids; when disabled it stops dead against them. | Enabled             *(boolean)* <br> |
 | Set break distance | If the gap to the drag point grows past the distance, the drag ends automatically. 0 disables this. | Distance             *(number)* <br>Action             *(combo)* <br> |
 | Set directions | Constrains drag movement, 8Direction style: free, a single axis, or snapped to 4 / 8 directions. | Directions             *(combo)* <br> |
 | Set follow speed | How fast the object catches up to the drag point, in pixels per second. 0 = instant snap. | Speed             *(number)* <br> |
-| Set solid collision | When on, the dragged object is pushed out of solids each tick and cannot be dragged through them. | Enabled             *(boolean)* <br> |
 | Add snap object | Registers an object as a snap and magnet target by its position. Use a For each loop to add many. Needs a snap radius to take effect. | Object             *(object)* <br> |
 | Add snap position | Registers a world-space position as a snap and magnet target. Needs a snap radius to take effect. | X             *(number)* <br>Y             *(number)* <br> |
 | Clear snap targets | Removes all registered snap positions and snap objects. |  |
@@ -85,7 +78,6 @@ npm run dev
 | On drag cancelled | Triggered when a drag ends via Drop (cancel) or a break-distance cancel. No throw is applied. |  |
 | On drag started | Triggered when Start Drag succeeds. |  |
 | On dropped | Triggered when a drag ends via Drop (release) or a break-distance drop. The throw is available. |  |
-| On hit solid | Triggered the first tick the dragged object is pushed out of a solid (solid collision must be on). |  |
 | Is snapping | True while the dragged object is within snap radius of a target (so a drop would snap to it). |  |
 | On snapped | Triggered after a release that lands within snap radius of a target. Fires alongside On Dropped. Read SnapTargetX, SnapTargetY, and SnappedObjectUID. |  |
 
@@ -108,6 +100,8 @@ npm run dev
 
 ---
 ## Changelog
+
+**1.2.0.0**
 
 **1.1.2.0**
 - **Added:** Added a "Snap mode: radius or collision"
