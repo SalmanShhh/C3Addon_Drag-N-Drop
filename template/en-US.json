@@ -68,6 +68,17 @@
               }
             }
           },
+          "SetDragPointToObject": {
+            "list-name": "Set drag point to object",
+            "display-text": "{my}: Set drag point to {0}",
+            "description": "Updates the world-space point the object follows to another object's position. Call every tick while dragging.",
+            "params": {
+              "object": {
+                "name": "Object",
+                "desc": "The object whose current position becomes the drag point."
+              }
+            }
+          },
           "SetEnabled": {
             "list-name": "Set  enabled",
             "display-text": "{my}: Set enabled {0}",

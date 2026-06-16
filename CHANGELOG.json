@@ -30,7 +30,7 @@
     "fixed": ""
   },
   "1.2.1.0": {
-    "added": "- Shows icon in the Actions similar to the Built-in Addons now, to avoid confusion",
+    "added": "- Added \"Set drag point to object\" ACE\n- Shows icon in the Actions similar to the Built-in Addons now, to avoid confusion\n",
     "changed": "",
     "fixed": ""
   }

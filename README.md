@@ -8,6 +8,7 @@
 <sub> [See all releases](https://github.com/SalmanShhh/C3Addon_Drag-N-Drop/releases) </sub> <br>
 
 #### What's New in 1.2.1.0
+- **Added:** - Added "Set drag point to object" ACE
 - **Added:** - Shows icon in the Actions similar to the Built-in Addons now, to avoid confusion
 
 <sub>[View full changelog](#changelog)</sub>
@@ -60,6 +61,7 @@ npm run dev
 | --- | --- | --- |
 | Drop | Ends the current drag. Release applies the measured throw; Cancel ends silently. Ignored if not dragging. | How             *(combo)* <br> |
 | Set drag point | Updates the world-space point the object follows. Call every tick while dragging. | X             *(number)* <br>Y             *(number)* <br> |
+| Set drag point to object | Updates the world-space point the object follows to another object's position. Call every tick while dragging. | Object             *(object)* <br> |
 | Set  enabled | Enables or disables the behaviour. Disabling cancels any in-progress drag. | Enabled             *(boolean)* <br> |
 | Set throw velocity | Overrides the measured throw before a release. Pass 0, 0 to suppress the throw entirely. | Velocity X             *(number)* <br>Velocity Y             *(number)* <br> |
 | Start drag | Begins dragging this object toward a drag point. Ignored if already dragging. | Drag point X             *(number)* <br>Drag point Y             *(number)* <br>Grab mode             *(combo)* <br> |
@@ -107,6 +109,7 @@ npm run dev
 ## Changelog
 
 **1.2.1.0**
+- **Added:** - Added "Set drag point to object" ACE
 - **Added:** - Shows icon in the Actions similar to the Built-in Addons now, to avoid confusion
 
 **1.2.0.0**

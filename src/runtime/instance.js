@@ -561,6 +561,24 @@ export default function (parentClass) {
       this._dragPointY = safeNumber(y, this._dragPointY);
     }
 
+    _setDragPointToObject(object) {
+      if (!object) {
+        return;
+      }
+      // Mirror _addSnapObject: the param is usually a single picked instance,
+      // but tolerate an object type by taking its first instance.
+      let target = null;
+      if (typeof object.uid === "number") {
+        target = object;
+      } else if (typeof object.getAllInstances === "function") {
+        const all = object.getAllInstances();
+        target = all && all.length ? all[0] : null;
+      }
+      if (target) {
+        this._setDragPoint(target.x, target.y);
+      }
+    }
+
     _setFollowSpeed(speed) {
       this._followSpeed = Math.max(0, safeNumber(speed, 0));
     }
