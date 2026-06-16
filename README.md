@@ -93,6 +93,7 @@ npm run dev
 ## Expressions
 | Expression | Description | Return Type | Params
 | --- | --- | --- | --- |
+| DraggingObjectUID | UID of the object this behavior is dragging, or -1 if it is not currently dragging. | number |  | 
 | DragPointX | Current world-space X of the drag point. | number |  | 
 | DragPointY | Current world-space Y of the drag point. | number |  | 
 | DropReason | Why the drag ended: "manual" for a Drop action, "broke_distance" for a break-distance end. | string |  | 
