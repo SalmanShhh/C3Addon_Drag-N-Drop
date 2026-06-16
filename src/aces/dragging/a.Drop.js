@@ -1,6 +1,6 @@
 export const config = {
   listName: "Drop",
-  displayText: "Drop ({0})",
+  displayText: "{my}: Drop ({0})",
   description:
     "Ends the current drag. Release applies the measured throw; Cancel ends silently. Ignored if not dragging.",
   isAsync: false,

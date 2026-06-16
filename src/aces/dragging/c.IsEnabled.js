@@ -1,6 +1,6 @@
 export const config = {
   listName: "Is enabled",
-  displayText: "Is enabled",
+  displayText: "{my}: Is enabled",
   description: "True if the behaviour is active.",
   isTrigger: false,
   isInvertible: true,

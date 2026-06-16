@@ -40,7 +40,7 @@
         "actions": {
           "Drop": {
             "list-name": "Drop",
-            "display-text": "Drop ({0})",
+            "display-text": "{my}: Drop ({0})",
             "description": "Ends the current drag. Release applies the measured throw; Cancel ends silently. Ignored if not dragging.",
             "params": {
               "how": {
@@ -55,7 +55,7 @@
           },
           "SetDragPoint": {
             "list-name": "Set drag point",
-            "display-text": "Set drag point to ({0}, {1})",
+            "display-text": "{my}: Set drag point to ({0}, {1})",
             "description": "Updates the world-space point the object follows. Call every tick while dragging.",
             "params": {
               "x": {
@@ -69,8 +69,8 @@
             }
           },
           "SetEnabled": {
-            "list-name": "Set enabled",
-            "display-text": "Set enabled {0}",
+            "list-name": "Set  enabled",
+            "display-text": "{my}: Set enabled {0}",
             "description": "Enables or disables the behaviour. Disabling cancels any in-progress drag.",
             "params": {
               "enabled": {
@@ -81,7 +81,7 @@
           },
           "SetThrowVelocity": {
             "list-name": "Set throw velocity",
-            "display-text": "Set throw velocity to ({0}, {1})",
+            "display-text": "{my}: Set throw velocity to ({0}, {1})",
             "description": "Overrides the measured throw before a release. Pass 0, 0 to suppress the throw entirely.",
             "params": {
               "velX": {
@@ -96,7 +96,7 @@
           },
           "StartDrag": {
             "list-name": "Start drag",
-            "display-text": "Start drag at ({0}, {1}) using {2}",
+            "display-text": "{my}: Start drag at ({0}, {1}) using {2}",
             "description": "Begins dragging this object toward a drag point. Ignored if already dragging.",
             "params": {
               "dragPointX": {
@@ -119,7 +119,7 @@
           },
           "SetBreakDistance": {
             "list-name": "Set break distance",
-            "display-text": "Set break distance to {0} ({1})",
+            "display-text": "{my}: Set break distance to {0} ({1})",
             "description": "If the gap to the drag point grows past the distance, the drag ends automatically. 0 disables this.",
             "params": {
               "distance": {
@@ -138,7 +138,7 @@
           },
           "SetDirections": {
             "list-name": "Set directions",
-            "display-text": "Set directions to {0}",
+            "display-text": "{my}: Set directions to {0}",
             "description": "Constrains drag movement, 8Direction style: free, a single axis, or snapped to 4 / 8 directions.",
             "params": {
               "directions": {
@@ -156,7 +156,7 @@
           },
           "SetFollowSpeed": {
             "list-name": "Set follow speed",
-            "display-text": "Set follow speed to {0}",
+            "display-text": "{my}: Set follow speed to {0}",
             "description": "How fast the object catches up to the drag point, in pixels per second. 0 = instant snap.",
             "params": {
               "speed": {
@@ -167,7 +167,7 @@
           },
           "AddSnapObject": {
             "list-name": "Add snap object",
-            "display-text": "Add snap object {0}",
+            "display-text": "{my}: Add snap object {0}",
             "description": "Registers an object as a snap and magnet target by its position. Use a For each loop to add many. Needs a snap radius to take effect.",
             "params": {
               "object": {
@@ -178,7 +178,7 @@
           },
           "AddSnapPosition": {
             "list-name": "Add snap position",
-            "display-text": "Add snap position ({0}, {1})",
+            "display-text": "{my}: Add snap position ({0}, {1})",
             "description": "Registers a world-space position as a snap and magnet target. Needs a snap radius to take effect.",
             "params": {
               "x": {
@@ -193,13 +193,13 @@
           },
           "ClearSnapTargets": {
             "list-name": "Clear snap targets",
-            "display-text": "Clear snap targets",
+            "display-text": "{my}: Clear snap targets",
             "description": "Removes all registered snap positions and snap objects.",
             "params": {}
           },
           "SetMagnetStrength": {
             "list-name": "Set magnet strength",
-            "display-text": "Set magnet strength to {0}",
+            "display-text": "{my}: Set magnet strength to {0}",
             "description": "How strongly the object is pulled toward an in-range snap target while dragging, from 0 (snap only on drop) to 1 (strong homing).",
             "params": {
               "strength": {
@@ -210,7 +210,7 @@
           },
           "SetSnapMode": {
             "list-name": "Set snap mode",
-            "display-text": "Set snap mode to {0}",
+            "display-text": "{my}: Set snap mode to {0}",
             "description": "How snapping detects a target: Radius (object within snap radius) or Overlap (the drag position collides with a target object, or the dragged object overlaps it).",
             "params": {
               "mode": {
@@ -225,7 +225,7 @@
           },
           "SetSnapRadius": {
             "list-name": "Set snap radius",
-            "display-text": "Set snap radius to {0}",
+            "display-text": "{my}: Set snap radius to {0}",
             "description": "Distance in pixels within which the object snaps to a target on drop and is magnetised while dragging. 0 disables snapping.",
             "params": {
               "radius": {
@@ -238,43 +238,43 @@
         "conditions": {
           "IsDragging": {
             "list-name": "Is dragging",
-            "display-text": "Is dragging",
+            "display-text": "{my}: Is dragging",
             "description": "True while the object is being dragged.",
             "params": {}
           },
           "IsEnabled": {
             "list-name": "Is enabled",
-            "display-text": "Is enabled",
+            "display-text": "{my}: Is enabled",
             "description": "True if the behaviour is active.",
             "params": {}
           },
           "OnDragCancelled": {
             "list-name": "On drag cancelled",
-            "display-text": "On drag cancelled",
+            "display-text": "{my}: On drag cancelled",
             "description": "Triggered when a drag ends via Drop (cancel) or a break-distance cancel. No throw is applied.",
             "params": {}
           },
           "OnDragStarted": {
             "list-name": "On drag started",
-            "display-text": "On drag started",
+            "display-text": "{my}: On drag started",
             "description": "Triggered when Start Drag succeeds.",
             "params": {}
           },
           "OnDropped": {
             "list-name": "On dropped",
-            "display-text": "On dropped",
+            "display-text": "{my}: On dropped",
             "description": "Triggered when a drag ends via Drop (release) or a break-distance drop. The throw is available.",
             "params": {}
           },
           "IsSnapping": {
             "list-name": "Is snapping",
-            "display-text": "Is snapping",
+            "display-text": "{my}: Is snapping",
             "description": "True while the dragged object is within snap radius of a target (so a drop would snap to it).",
             "params": {}
           },
           "OnSnapped": {
             "list-name": "On snapped",
-            "display-text": "On snapped",
+            "display-text": "{my}: On snapped",
             "description": "Triggered after a release that lands within snap radius of a target. Fires alongside On Dropped. Read SnapTargetX, SnapTargetY, and SnappedObjectUID.",
             "params": {}
           }

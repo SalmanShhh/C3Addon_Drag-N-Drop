@@ -28,5 +28,10 @@
     "added": "",
     "changed": "",
     "fixed": ""
+  },
+  "1.2.1.0": {
+    "added": "- Shows icon in the Actions similar to the Built-in Addons now, to avoid confusion",
+    "changed": "",
+    "fixed": ""
   }
 }

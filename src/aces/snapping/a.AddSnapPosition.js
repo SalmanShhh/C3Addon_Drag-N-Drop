@@ -1,6 +1,6 @@
 export const config = {
   listName: "Add snap position",
-  displayText: "Add snap position ({0}, {1})",
+  displayText: "{my}: Add snap position ({0}, {1})",
   description:
     "Registers a world-space position as a snap and magnet target. Needs a snap radius to take effect.",
   isAsync: false,

@@ -1,6 +1,6 @@
 export const config = {
   listName: "Set follow speed",
-  displayText: "Set follow speed to {0}",
+  displayText: "{my}: Set follow speed to {0}",
   description:
     "How fast the object catches up to the drag point, in pixels per second. 0 = instant snap.",
   isAsync: false,

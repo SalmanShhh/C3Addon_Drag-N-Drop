@@ -1,6 +1,6 @@
 export const config = {
   listName: "Is dragging",
-  displayText: "Is dragging",
+  displayText: "{my}: Is dragging",
   description: "True while the object is being dragged.",
   isTrigger: false,
   isInvertible: true,

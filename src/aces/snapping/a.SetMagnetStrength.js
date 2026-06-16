@@ -1,6 +1,6 @@
 export const config = {
   listName: "Set magnet strength",
-  displayText: "Set magnet strength to {0}",
+  displayText: "{my}: Set magnet strength to {0}",
   description:
     "How strongly the object is pulled toward an in-range snap target while dragging, from 0 (snap only on drop) to 1 (strong homing).",
   isAsync: false,

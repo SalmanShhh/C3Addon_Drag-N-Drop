@@ -1,6 +1,6 @@
 export const config = {
   listName: "Set break distance",
-  displayText: "Set break distance to {0} ({1})",
+  displayText: "{my}: Set break distance to {0} ({1})",
   description:
     "If the gap to the drag point grows past the distance, the drag ends automatically. 0 disables this.",
   isAsync: false,

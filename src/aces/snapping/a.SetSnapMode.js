@@ -1,6 +1,6 @@
 export const config = {
   listName: "Set snap mode",
-  displayText: "Set snap mode to {0}",
+  displayText: "{my}: Set snap mode to {0}",
   description:
     "How snapping detects a target: Radius (object within snap radius) or Overlap (the drag position collides with a target object, or the dragged object overlaps it).",
   isAsync: false,

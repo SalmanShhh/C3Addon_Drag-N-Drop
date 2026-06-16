@@ -1,6 +1,6 @@
 export const config = {
   listName: "Clear snap targets",
-  displayText: "Clear snap targets",
+  displayText: "{my}: Clear snap targets",
   description: "Removes all registered snap positions and snap objects.",
   isAsync: false,
   highlight: false,

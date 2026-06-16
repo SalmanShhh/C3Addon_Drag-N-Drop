@@ -1,6 +1,6 @@
 export const config = {
   listName: "Set drag point",
-  displayText: "Set drag point to ({0}, {1})",
+  displayText: "{my}: Set drag point to ({0}, {1})",
   description:
     "Updates the world-space point the object follows. Call every tick while dragging.",
   isAsync: false,

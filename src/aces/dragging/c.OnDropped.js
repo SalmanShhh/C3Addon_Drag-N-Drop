@@ -1,6 +1,6 @@
 export const config = {
   listName: "On dropped",
-  displayText: "On dropped",
+  displayText: "{my}: On dropped",
   description:
     "Triggered when a drag ends via Drop (release) or a break-distance drop. The throw is available.",
   isTrigger: true,

@@ -1,6 +1,6 @@
 export const config = {
   listName: "Set directions",
-  displayText: "Set directions to {0}",
+  displayText: "{my}: Set directions to {0}",
   description:
     "Constrains drag movement, 8Direction style: free, a single axis, or snapped to 4 / 8 directions.",
   isAsync: false,

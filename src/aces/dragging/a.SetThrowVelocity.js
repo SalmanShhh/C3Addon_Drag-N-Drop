@@ -1,6 +1,6 @@
 export const config = {
   listName: "Set throw velocity",
-  displayText: "Set throw velocity to ({0}, {1})",
+  displayText: "{my}: Set throw velocity to ({0}, {1})",
   description:
     "Overrides the measured throw before a release. Pass 0, 0 to suppress the throw entirely.",
   isAsync: false,

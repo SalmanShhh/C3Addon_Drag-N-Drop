@@ -1,6 +1,6 @@
 export const config = {
   listName: "On drag cancelled",
-  displayText: "On drag cancelled",
+  displayText: "{my}: On drag cancelled",
   description:
     "Triggered when a drag ends via Drop (cancel) or a break-distance cancel. No throw is applied.",
   isTrigger: true,

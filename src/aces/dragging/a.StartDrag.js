@@ -1,6 +1,6 @@
 export const config = {
   listName: "Start drag",
-  displayText: "Start drag at ({0}, {1}) using {2}",
+  displayText: "{my}: Start drag at ({0}, {1}) using {2}",
   description:
     "Begins dragging this object toward a drag point. Ignored if already dragging.",
   isAsync: false,

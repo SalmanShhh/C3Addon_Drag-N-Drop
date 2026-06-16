@@ -1,6 +1,6 @@
 export const config = {
   listName: "On snapped",
-  displayText: "On snapped",
+  displayText: "{my}: On snapped",
   description:
     "Triggered after a release that lands within snap radius of a target. Fires alongside On Dropped. Read SnapTargetX, SnapTargetY, and SnappedObjectUID.",
   isTrigger: true,

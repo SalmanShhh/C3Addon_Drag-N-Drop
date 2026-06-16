@@ -1,6 +1,6 @@
 export const config = {
-  listName: "Set enabled",
-  displayText: "Set enabled {0}",
+  listName: "Set  enabled",
+  displayText: "{my}: Set enabled {0}",
   description: "Enables or disables the behaviour. Disabling cancels any in-progress drag.",
   isAsync: false,
   highlight: false,
