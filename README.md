@@ -8,7 +8,7 @@
 <sub> [See all releases](https://github.com/SalmanShhh/C3Addon_Drag-N-Drop/releases) </sub> <br>
 
 #### What's New in 1.2.1.0
-- **Added:** - Added "Set drag point to object" ACE
+- **Added:** - Added "Set drag point to object" ACEs
 - **Added:** - Shows icon in the Actions similar to the Built-in Addons now, to avoid confusion
 
 <sub>[View full changelog](#changelog)</sub>
@@ -65,6 +65,7 @@ npm run dev
 | Set  enabled | Enables or disables the behaviour. Disabling cancels any in-progress drag. | Enabled             *(boolean)* <br> |
 | Set throw velocity | Overrides the measured throw before a release. Pass 0, 0 to suppress the throw entirely. | Velocity X             *(number)* <br>Velocity Y             *(number)* <br> |
 | Start drag | Begins dragging this object toward a drag point. Ignored if already dragging. | Drag point X             *(number)* <br>Drag point Y             *(number)* <br>Grab mode             *(combo)* <br> |
+| Start drag at object | Begins dragging this object at the target's position and keeps the drag point glued to that object each tick, so it sticks to a moving target. Ignored if already dragging. | Object             *(object)* <br>Grab mode             *(combo)* <br> |
 | Set break distance | If the gap to the drag point grows past the distance, the drag ends automatically. 0 disables this. | Distance             *(number)* <br>Action             *(combo)* <br> |
 | Set directions | Constrains drag movement, 8Direction style: free, a single axis, or snapped to 4 / 8 directions. | Directions             *(combo)* <br> |
 | Set follow speed | How fast the object catches up to the drag point, in pixels per second. 0 = instant snap. | Speed             *(number)* <br> |
@@ -93,7 +94,7 @@ npm run dev
 ## Expressions
 | Expression | Description | Return Type | Params
 | --- | --- | --- | --- |
-| DraggingObjectUID | UID of the object this behavior is dragging, or -1 if it is not currently dragging. | number |  | 
+| DragPointObjectUID | UID of the object the drag point is glued to (set by Start drag at object), or -1 if the drag point is a free position. | number |  | 
 | DragPointX | Current world-space X of the drag point. | number |  | 
 | DragPointY | Current world-space Y of the drag point. | number |  | 
 | DropReason | Why the drag ended: "manual" for a Drop action, "broke_distance" for a break-distance end. | string |  | 
@@ -110,7 +111,7 @@ npm run dev
 ## Changelog
 
 **1.2.1.0**
-- **Added:** - Added "Set drag point to object" ACE
+- **Added:** - Added "Set drag point to object" ACEs
 - **Added:** - Shows icon in the Actions similar to the Built-in Addons now, to avoid confusion
 
 **1.2.0.0**

@@ -1,7 +1,7 @@
 export const config = {
   returnType: "number",
   description:
-    "UID of the object this behavior is dragging, or -1 if it is not currently dragging.",
+    "UID of the object the drag point is glued to (set by Start drag at object), or -1 if the drag point is a free position.",
   highlight: false,
   isDeprecated: false,
   params: [],
@@ -10,5 +10,5 @@ export const config = {
 export const expose = false;
 
 export default function () {
-  return this._dragging && this.instance ? this.instance.uid : -1;
+  return this._followUid;
 }

@@ -120,6 +120,9 @@ export default function (parentClass) {
 
       // Drag lifecycle state.
       this._dragging = false;
+      // UID of an object the drag point is glued to each tick, or -1 for a
+      // free point (StartDragAtObject sets this; manual point updates clear it).
+      this._followUid = -1;
       this._dragPointX = 0;
       this._dragPointY = 0;
       this._prevDragPointX = 0;
@@ -219,6 +222,19 @@ export default function (parentClass) {
     _tick() {
       if (!this._enabled || !this._dragging || !this.instance) {
         return;
+      }
+
+      // Glued drag: keep the drag point on the followed object so the dragged
+      // object sticks to a moving target. If that object is gone, fall back to
+      // a fixed-point drag at the last known position.
+      if (this._followUid !== -1) {
+        const followed = this._getInstanceByUid(this._followUid);
+        if (followed) {
+          this._dragPointX = safeNumber(followed.x, this._dragPointX);
+          this._dragPointY = safeNumber(followed.y, this._dragPointY);
+        } else {
+          this._followUid = -1;
+        }
       }
 
       // Per-instance dt respects any timeScale the developer set on the object.
@@ -484,6 +500,8 @@ export default function (parentClass) {
       }
 
       this._dragging = true;
+      // A plain point-based start is not glued to any object.
+      this._followUid = -1;
       this._dropReason = "manual";
       this._distanceFromPoint = 0;
       this._hasThrowOverride = false;
@@ -495,6 +513,23 @@ export default function (parentClass) {
       this._resetThrowSampling();
 
       this._trigger("OnDragStarted");
+    }
+
+    // Like _startDrag, but begins at the target object's position and keeps the
+    // drag point glued to it each tick so the dragged object sticks to it.
+    _startDragAtObject(object, grabMode) {
+      if (!this._enabled || this._dragging || !this.instance) {
+        return;
+      }
+      const target = this._resolveInstance(object);
+      if (!target) {
+        return;
+      }
+      this._startDrag(target.x, target.y, grabMode);
+      // _startDrag clears _followUid; glue on only once the drag has started.
+      if (this._dragging) {
+        this._followUid = target.uid;
+      }
     }
 
     _drop(how) {
@@ -542,6 +577,7 @@ export default function (parentClass) {
       this._throwSpeed = Math.hypot(this._throwVelX, this._throwVelY);
 
       this._dragging = false;
+      this._followUid = -1;
       this._hasThrowOverride = false;
       this._isSnapping = false;
       this._resetThrowSampling();
@@ -556,24 +592,33 @@ export default function (parentClass) {
     // Action setters
     // -----------------------------------------------------------------------
 
+    // Resolve an object param to a single world instance: the picked instance,
+    // or the first of an object type. Returns null when nothing usable is found.
+    _resolveInstance(object) {
+      if (!object) {
+        return null;
+      }
+      // Mirror _addSnapObject: the param is usually a single picked instance,
+      // but tolerate an object type by taking its first instance.
+      if (typeof object.uid === "number") {
+        return object;
+      }
+      if (typeof object.getAllInstances === "function") {
+        const all = object.getAllInstances();
+        return all && all.length ? all[0] : null;
+      }
+      return null;
+    }
+
     _setDragPoint(x, y) {
+      // A manual point update takes over from any glued-object follow.
+      this._followUid = -1;
       this._dragPointX = safeNumber(x, this._dragPointX);
       this._dragPointY = safeNumber(y, this._dragPointY);
     }
 
     _setDragPointToObject(object) {
-      if (!object) {
-        return;
-      }
-      // Mirror _addSnapObject: the param is usually a single picked instance,
-      // but tolerate an object type by taking its first instance.
-      let target = null;
-      if (typeof object.uid === "number") {
-        target = object;
-      } else if (typeof object.getAllInstances === "function") {
-        const all = object.getAllInstances();
-        target = all && all.length ? all[0] : null;
-      }
+      const target = this._resolveInstance(object);
       if (target) {
         this._setDragPoint(target.x, target.y);
       }
@@ -603,6 +648,7 @@ export default function (parentClass) {
       if (!next && this._dragging) {
         // Disabling cancels any in-progress drag silently (no event per spec).
         this._dragging = false;
+        this._followUid = -1;
         this._hasThrowOverride = false;
         this._isSnapping = false;
         this._resetThrowSampling();
@@ -686,6 +732,7 @@ export default function (parentClass) {
     _release() {
       // End any drag without firing events as the instance is destroyed.
       this._dragging = false;
+      this._followUid = -1;
       super._release();
     }
 
@@ -720,6 +767,7 @@ export default function (parentClass) {
       this._snapUids = new Set(Array.isArray(o?.snapUids) ? o.snapUids : []);
       // A save made mid-drag loads as not dragging.
       this._dragging = false;
+      this._followUid = -1;
       this._hasThrowOverride = false;
       this._isSnapping = false;
       this._snappedUid = -1;
