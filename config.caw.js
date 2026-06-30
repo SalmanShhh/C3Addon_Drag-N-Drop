@@ -86,7 +86,9 @@ export const properties = [
   // A small, simple panel: the common defaults live here, and every one can
   // still be overridden at runtime through its matching action.
   // NOTE: this order must match the reads in src/runtime/instance.js.
-  // "Enabled" is intentionally kept LAST in this list.
+  // "Enabled" is intentionally kept LAST in this panel (project convention).
+  // New properties go ABOVE Enabled; Construct matches saved values by id, so
+  // this does not break existing projects.
   {
     type: PROPERTY_TYPE.FLOAT,
     id: "followSpeed",
@@ -136,6 +138,7 @@ export const properties = [
         { instant: "Instant" },
         { speed: "Constant Speed" },
         { spring: "Spring Physics" },
+        { grid: "Grid" },
       ],
     },
     name: "Follow Mode",
@@ -164,6 +167,49 @@ export const properties = [
     desc: "Velocity bleed-off per second that settles the bounce. 20 gives a gentle overshoot; ~2 * sqrt(stiffness) is critical damping (no overshoot). Only active when Follow Mode is Spring Physics.",
   },
   {
+    type: PROPERTY_TYPE.FLOAT,
+    id: "gridWidth",
+    options: {
+      initialValue: 32,
+      minValue: 0,
+      interpolatable: false,
+    },
+    name: "Grid Cell Width",
+    desc: "Tile width in pixels for the Grid follow mode. 0 leaves the X axis unsnapped. Override at runtime with Set grid.",
+  },
+  {
+    type: PROPERTY_TYPE.FLOAT,
+    id: "gridHeight",
+    options: {
+      initialValue: 32,
+      minValue: 0,
+      interpolatable: false,
+    },
+    name: "Grid Cell Height",
+    desc: "Tile height in pixels for the Grid follow mode. 0 leaves the Y axis unsnapped. Override at runtime with Set grid.",
+  },
+  {
+    type: PROPERTY_TYPE.FLOAT,
+    id: "gridOriginX",
+    options: {
+      initialValue: 0,
+      interpolatable: false,
+    },
+    name: "Grid Origin X",
+    desc: "X offset of the grid origin in pixels. Shifts where cell boundaries fall.",
+  },
+  {
+    type: PROPERTY_TYPE.FLOAT,
+    id: "gridOriginY",
+    options: {
+      initialValue: 0,
+      interpolatable: false,
+    },
+    name: "Grid Origin Y",
+    desc: "Y offset of the grid origin in pixels. Shifts where cell boundaries fall.",
+  },
+  {
+    // Kept LAST in the panel by project convention.
     type: PROPERTY_TYPE.CHECK,
     id: "enabled",
     options: {

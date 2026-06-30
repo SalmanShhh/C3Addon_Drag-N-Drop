@@ -38,7 +38,8 @@
             "items": {
               "instant": "Instant",
               "speed": "Constant Speed",
-              "spring": "Spring Physics"
+              "spring": "Spring Physics",
+              "grid": "Grid"
             }
           },
           "springStiffness": {
@@ -48,6 +49,22 @@
           "springDamping": {
             "name": "Spring Damping",
             "desc": "Velocity bleed-off per second that settles the bounce. 20 gives a gentle overshoot; ~2 * sqrt(stiffness) is critical damping (no overshoot). Only active when Follow Mode is Spring Physics."
+          },
+          "gridWidth": {
+            "name": "Grid Cell Width",
+            "desc": "Tile width in pixels for the Grid follow mode. 0 leaves the X axis unsnapped. Override at runtime with Set grid."
+          },
+          "gridHeight": {
+            "name": "Grid Cell Height",
+            "desc": "Tile height in pixels for the Grid follow mode. 0 leaves the Y axis unsnapped. Override at runtime with Set grid."
+          },
+          "gridOriginX": {
+            "name": "Grid Origin X",
+            "desc": "X offset of the grid origin in pixels. Shifts where cell boundaries fall."
+          },
+          "gridOriginY": {
+            "name": "Grid Origin Y",
+            "desc": "Y offset of the grid origin in pixels. Shifts where cell boundaries fall."
           },
           "enabled": {
             "name": "Enabled",
@@ -204,15 +221,16 @@
           "SetFollowMode": {
             "list-name": "Set follow mode",
             "display-text": "{my}: Set follow mode to {0}",
-            "description": "Switches how the object moves toward the drag point: Instant (snap each tick), Constant Speed (uses Follow Speed), or Spring Physics (uses Spring Stiffness and Damping).",
+            "description": "Switches how the object moves toward the drag point: Instant (snap each tick), Constant Speed (uses Follow Speed), Spring Physics (uses Spring Stiffness and Damping), or Grid (snaps to a tile grid set by the Set grid action).",
             "params": {
               "mode": {
                 "name": "Mode",
-                "desc": "Instant = snap each tick, Constant Speed = fixed pixels/second, Spring Physics = spring-damper acceleration.",
+                "desc": "Instant = snap each tick, Constant Speed = fixed pixels/second, Spring Physics = spring-damper acceleration, Grid = snap to a tile grid.",
                 "items": {
                   "instant": "Instant",
                   "speed": "Constant Speed",
-                  "spring": "Spring Physics"
+                  "spring": "Spring Physics",
+                  "grid": "Grid"
                 }
               }
             }
@@ -225,6 +243,29 @@
               "speed": {
                 "name": "Speed",
                 "desc": "Pixels per second. 0 means the object snaps to the drag point each tick."
+              }
+            }
+          },
+          "SetGrid": {
+            "list-name": "Set grid",
+            "display-text": "{my}: Set grid to {0} x {1} (origin {2}, {3})",
+            "description": "Sets the tile grid used by the Grid follow mode: cell width and height plus an origin offset. While Follow Mode is Grid, the object snaps to the nearest cell. A width or height of 0 leaves that axis unsnapped.",
+            "params": {
+              "cellWidth": {
+                "name": "Cell width",
+                "desc": "Grid cell width in pixels. 0 leaves the X axis free (unsnapped)."
+              },
+              "cellHeight": {
+                "name": "Cell height",
+                "desc": "Grid cell height in pixels. 0 leaves the Y axis free (unsnapped)."
+              },
+              "originX": {
+                "name": "Origin X",
+                "desc": "X offset of the grid origin in pixels. Shifts where cell boundaries fall."
+              },
+              "originY": {
+                "name": "Origin Y",
+                "desc": "Y offset of the grid origin in pixels. Shifts where cell boundaries fall."
               }
             }
           },

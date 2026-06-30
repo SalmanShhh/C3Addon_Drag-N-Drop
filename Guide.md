@@ -23,7 +23,8 @@ Drag N Drop is a Construct 3 behaviour that is a drop-in replacement for the bui
 17. [Game Use Cases](#17-game-use-cases)
 18. [C3 Debugger](#18-c3-debugger)
 19. [Scripting](#19-scripting)
-20. [Tips and Common Mistakes](#20-tips-and-common-mistakes)
+20. [Integrating with Push-Out and Slide](#20-integrating-with-push-out-and-slide)
+21. [Tips and Common Mistakes](#21-tips-and-common-mistakes)
 
 ## 1. Scenarios Where This Addon Excels
 
@@ -32,6 +33,9 @@ Drag N Drop is a Construct 3 behaviour that is a drop-in replacement for the bui
 - **Physics-sandbox and throwing games**: Throw velocity is measured automatically, so flick-to-throw needs no per-frame accumulator.
 - **Snap-to-grid and magnetic slots**: Inventory slots, jigsaw boards, and node editors where pieces pull toward and lock onto targets. Snapping and magnetism handle it with a radius and a strength.
 - **Yank-to-release interactions**: Give the object a follow speed so it lags, then flick the cursor away and it auto-drops or cancels once the gap grows past a break distance, with no distance maths.
+- **Tile-grid editors and builders**: Set the follow mode to Grid and the object snaps cell to cell as you drag, landing exactly on a tile. Level editors, city builders, board games, and even step sequencers (with the grid axes mapped to time and pitch) get clean alignment for free, no rounding maths in your events.
+- **Springy, juicy dragging**: Spring Physics mode ties the object to the cursor with a tunable spring, so it overshoots and settles like a rubber band. Perfect for satisfying mobile UIs, wobbly creatures, slingshots, and pull-and-release charge mechanics, with the throw measured from the object's own velocity.
+- **One behaviour, four feels**: Switch between Instant, Constant Speed, Spring Physics, and Grid at runtime with a single action, so the same object can snap precisely, glide, bounce, or grid-lock depending on context, like a power-up, a settings toggle, or a status effect changing how it drags.
 - **Puzzle games at scale**: Dozens of draggable pieces, each respecting direction locks, all sharing one behaviour configuration.
 - **Accessibility-driven input**: Switch-access, eye-gaze, or dwell-click systems can start and stop drags from any event without touching the object's drag logic.
 
@@ -103,9 +107,13 @@ The panel keeps a small set of the most common defaults. Every one of them can a
 | **Follow Speed** | Number | 0 | In Constant Speed mode, the max speed in pixels per second the object catches up to the drag point. 0 is an instant snap. |
 | **Directions** | Combo | Free (360) | Movement lock: Free, Up & Down, Left & Right, 4 Directions, or 8 Directions. |
 | **Break Distance** | Number | 0 | Gap to the drag point that auto-ends the drag. 0 disables it. |
-| **Follow Mode** | Combo | Constant Speed | How the object moves toward the drag point: Instant (snap), Constant Speed (uses Follow Speed), or Spring Physics (uses Spring Stiffness and Damping). With the default Follow Speed of 0, Constant Speed snaps instantly, so the out-of-box feel is unchanged. |
+| **Follow Mode** | Combo | Constant Speed | How the object moves toward the drag point: Instant (snap), Constant Speed (uses Follow Speed), Spring Physics (uses Spring Stiffness and Damping), or Grid (snaps to the tile grid below). With the default Follow Speed of 0, Constant Speed snaps instantly, so the out-of-box feel is unchanged. |
 | **Spring Stiffness** | Number | 300 | Spring acceleration coefficient (pixels/s² per pixel). Only used in Spring Physics mode. 300 is a responsive, lively default. |
 | **Spring Damping** | Number | 20 | Velocity bleed-off per second that calms the spring's bounce. Only used in Spring Physics mode. Around 2 × √stiffness is critically damped (no overshoot); the default 20 leaves a gentle bounce. |
+| **Grid Cell Width** | Number | 32 | Tile width in pixels for the Grid follow mode. 0 leaves the X axis unsnapped. Override at runtime with Set grid. |
+| **Grid Cell Height** | Number | 32 | Tile height in pixels for the Grid follow mode. 0 leaves the Y axis unsnapped. |
+| **Grid Origin X** | Number | 0 | X offset of the grid origin in pixels. Shifts where cell boundaries fall. |
+| **Grid Origin Y** | Number | 0 | Y offset of the grid origin in pixels. |
 | **Enabled** | Boolean | true | Whether the behaviour is active when the layout starts. Kept last in the panel by convention. |
 
 Snapping and magnetism are not on the panel because they need targets registered through events. They default to off (snap radius 0, magnet strength 0) and are turned on through their actions. See [Snapping, Magnetism, and Homing](#11-snapping-magnetism-and-homing).
@@ -164,6 +172,7 @@ The **follow mode** decides how the object travels toward the drag point each ti
 | **Instant** | The object snaps exactly onto its target every tick. Crisp and precise. | nothing extra |
 | **Constant Speed** | The object closes the gap at a capped pixels-per-second rate, so it trails a fast pointer and catches up when it slows. This is the default, and with the default Follow Speed of 0 it snaps instantly. | Follow Speed |
 | **Spring Physics** | The object is pulled toward the target like it is tied on a spring: it accelerates, overshoots, and settles. | Spring Stiffness, Spring Damping |
+| **Grid** | The object snaps to the nearest cell of a tile grid each tick, jumping cell to cell as you drag and landing exactly on a cell when dropped. Set the cell size on the panel or with the Set grid action. | Grid Cell Width / Height / Origin |
 
 The mode is explicit. Spring Physics is always a spring even if the stiffness is misconfigured, and Constant Speed is always speed-based even if the speed is 0 (in which case it snaps). Nothing is inferred from a value being zero.
 
@@ -393,9 +402,10 @@ Event: Item (DragNDrop) -> Is dragging
 
 | Action | Description |
 | --- | --- |
-| **Set follow mode** | Chooses how the object moves toward the drag point: Instant (snap), Constant Speed (uses Follow Speed), or Spring Physics (uses Spring Stiffness and Damping). |
+| **Set follow mode** | Chooses how the object moves toward the drag point: Instant (snap), Constant Speed (uses Follow Speed), Spring Physics (uses Spring Stiffness and Damping), or Grid (snaps to a tile grid). |
 | **Set follow speed** | Sets the maximum speed in pixels per second at which the object catches up to the drag point in Constant Speed mode. 0 is an instant snap. |
 | **Set spring** | Sets the Spring Physics stiffness (pull strength) and damping (bounce bleed-off). Tune these for the feel of the spring; does not change the follow mode. |
+| **Set grid** | Sets the tile grid (cell width, cell height, origin X, origin Y) used by the Grid follow mode. A width or height of 0 leaves that axis unsnapped. |
 | **Set directions** | Constrains movement to Free, Up & Down, Left & Right, 4 Directions, or 8 Directions. |
 | **Set break distance** | Sets the maximum gap to the drag point before the drag auto-ends, and whether that end is a Drop or a Cancel. 0 disables it. |
 
@@ -1285,6 +1295,75 @@ Event: Ball (DragNDrop) -> On dropped
 
 Note: With tiny stiffness and almost no damping the ball trails far behind the anchor and keeps swinging, so timing the release at the bottom of a swing delivers the most momentum. The measured throw is the ball's real velocity, so a well-timed swing hits much harder than a lazy one.
 
+### 33. Tile map editor placement
+
+**Scenario:** A level editor where dragged tiles snap cleanly to a 32x32 grid so they always line up. (Orthodox)
+
+```text
+Event: On start of layout
+  Action: Tile (DragNDrop) -> Set follow mode to Grid
+  Action: Tile (DragNDrop) -> Set grid to 32 x 32 (origin 0, 0)
+
+Event: On Left mouse button Clicked on Tile
+  Action: Tile (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Center on point
+Event: Tile (DragNDrop) -> Is dragging
+  Action: Tile (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+
+Event: On Left mouse button Released
+  Action: Tile (DragNDrop) -> Drop (Release)
+```
+
+Note: In Grid follow mode the tile jumps cell to cell as you move, so it is always aligned. Use Center on point so the tile centres on the cursor's cell, and it lands exactly on a cell when dropped.
+
+### 34. Tower defense build placement
+
+**Scenario:** Drag a tower preview that snaps to the build grid, then confirm the cell is buildable on release. (Orthodox)
+
+```text
+Event: On start of layout
+  Action: TowerGhost (DragNDrop) -> Set follow mode to Grid
+  Action: TowerGhost (DragNDrop) -> Set grid to 64 x 64 (origin 32, 32)
+  // origin 32, 32 centres the ghost inside each 64px cell
+
+Event: On Build button pressed
+  Action: TowerGhost (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Center on point
+Event: TowerGhost (DragNDrop) -> Is dragging
+  Action: TowerGhost (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+
+Event: On Left mouse button Released
+  Action: TowerGhost (DragNDrop) -> Drop (Release)
+Event: TowerGhost (DragNDrop) -> On dropped
+  Condition: System -> CellIsBuildable(TowerGhost.X, TowerGhost.Y) = 1
+  Action: System -> Create Tower at (TowerGhost.X, TowerGhost.Y)
+```
+
+Note: The grid origin offset places the ghost at cell centres rather than corners. Because the ghost is always grid-aligned while dragging, the buildable check in On Dropped just reads its snapped position.
+
+### 35. Beat-grid step sequencer
+
+**Scenario:** Drag note blocks onto a sequencer where the X grid is musical time steps and the Y grid is pitch lanes, an entirely non-spatial use of grid snapping. (Unorthodox)
+
+```text
+Event: On start of layout
+  Action: Note (DragNDrop) -> Set follow mode to Grid
+  Action: Note (DragNDrop) -> Set grid to 48 x 24 (origin SeqLeft, SeqTop)
+  // 48px per 1/8 beat across, 24px per pitch lane down
+
+Event: On Left mouse button Clicked on Note
+  Action: Note (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Center on point
+Event: Note (DragNDrop) -> Is dragging
+  Action: Note (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+
+Event: On Left mouse button Released
+  Action: Note (DragNDrop) -> Drop (Release)
+Event: Note (DragNDrop) -> On dropped
+  Action: System -> Set NoteStep to round((Note.X - SeqLeft) / 48)
+  Action: System -> Set NotePitch to round((Note.Y - SeqTop) / 24)
+  // the snapped position maps straight to a step and a pitch lane
+```
+
+Note: Grid snapping does not have to mean spatial tiles. Here the two axes encode time and pitch, so a note always lands on a valid step and lane, and aligning the grid origin to the sequencer's top-left makes the snapped X/Y convert directly to musical values.
+
 ### Other game use cases
 
 - **Puzzle games:** Drag pieces into place, lock them to directions, and snap them home on drop.
@@ -1315,6 +1394,9 @@ Note: With tiny stiffness and almost no damping the ball trails far behind the a
 - **Character customisation:** Googly eyes, hats, and accessories that jiggle into place on a spring, reading SpringVelocityX/Y for a lively wobble as they settle.
 - **Educational physics:** Demonstrate harmonic motion, damping, and resonance live by dragging a mass on a spring and tuning stiffness and damping in front of students.
 - **Fighting and action games:** Spring-loaded charge moves where pulling back further and releasing at the right moment delivers a stronger, momentum-carried launch.
+- **City and base builders:** Set the follow mode to Grid so dragged buildings snap to the construction grid, then confirm the cell in On Dropped. (Orthodox)
+- **Music and rhythm creation tools:** Use Grid mode with the axes mapped to time and pitch, turning grid snapping into a step sequencer where notes land on valid beats and lanes. (Unorthodox)
+- **Pixel-art and mosaic toys:** A stamp set to a coarse Grid so every dab lands on blocky cell boundaries for a chunky, retro look. (Unorthodox)
 
 ## 18. C3 Debugger
 
@@ -1445,7 +1527,47 @@ Notes:
 - Expressions (DragPointX, ThrowSpeed, SnapTargetX, and so on) are **not** callable from script. They are event-sheet expressions only. Read live state from the debugger or maintain your own values in script.
 - The behaviour reads the drag point from whatever you pass to SetDragPoint, so any input source works the same from script as it does from events.
 
-## 20. Tips and Common Mistakes
+## 20. Integrating with Push-Out and Slide
+
+Drag N Drop never checks collisions: each tick it just sets the object's position to follow the drag point. The companion behaviour **Push-Out and Slide** does the opposite half of the job — it never moves the object on its own, it runs *after* movement and pushes the object back out of any solids it ended up overlapping, sliding it along them. Put both behaviours on the same object and you get dragging that respects walls: drag a piece around and it glides along obstacles and can never be pulled through them, with no collision code of your own.
+
+### How they layer
+
+Each tick, Drag N Drop moves the object toward the drag point (in whatever follow mode you chose), then Push-Out and Slide corrects that position out of solids. Because both are post-movement behaviours, **order matters**: in the object's behaviour list put **Push-Out and Slide below Drag N Drop**, so it runs after the drag has moved the object. If it runs first it only corrects the previous tick's position, and the drag then shoves the object back into the wall for that frame.
+
+### Use Swept resolution
+
+A drag can move the object a long way in a single tick — a fast cursor, or Instant follow mode snapping straight onto the drag point. A plain push-out only looks at the final position, so a quick flick across a thin wall can tunnel through or pop out the far side. Set Push-Out and Slide's **Resolution mode to Swept (continuous)**: it traces the path from the object's last resolved position to the new one and stops at the first wall, so the object always stays on the side it came from. This is the recommended pairing, and the same reason Swept mode exists for Construct's built-in Drag & Drop, which Drag N Drop replaces.
+
+```text
+Object setup (on the draggable Crate):
+  - Add both behaviours: Drag N Drop first, then Push-Out and Slide (that list order).
+  - Push-Out and Slide -> Resolution mode = Swept (continuous)
+  - Push-Out and Slide -> Obstacles = Solids   (or Custom + Add solid for your walls)
+
+Event: On Left mouse button Clicked on Crate
+  Action: Crate (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: Crate (DragNDrop) -> Is dragging
+  Action: Crate (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+  // Drag N Drop moves the crate to the cursor; Push-Out and Slide traces that
+  // move and stops it at the first wall, sliding along it.
+Event: On Left mouse button Released
+  Action: Crate (DragNDrop) -> Drop (Release)
+```
+
+### Follow modes and Push-Out
+
+- **Instant** drags try to sit on the cursor each tick; Swept traces from the object's corrected position to the cursor and stops at walls. The cleanest, most responsive combination.
+- **Constant Speed and Spring Physics** move the object gradually from its already-corrected position toward the cursor, so each tick starts from a wall-legal spot and eases along. A spring pressed into a wall settles against it instead of overshooting through.
+- **Grid** snaps the object to cells, then Push-Out corrects any cell that lands inside a wall. Keep the grid and the wall layout aligned so valid cells are not buried in solids.
+
+### Gotchas
+
+- **Break distance fights the wall.** When Push-Out holds the object at a wall while the cursor keeps moving, the gap to the drag point grows — exactly what Break Distance watches. With both behaviours on, either leave Break Distance at 0 or set it generously, or a wall will auto-drop the object. The same applies to spring overshoot.
+- **Snapping still works.** Snap targets, magnetism, and On Snapped are unaffected: the object snaps on drop and Push-Out keeps it clear of solids.
+- **Throw is yours to apply.** On drop, Drag N Drop measures the throw (ThrowVelocityX/Y) but never moves the object. If you forward that velocity into your own movement, keep Push-Out and Slide enabled so the thrown object still respects walls.
+
+## 21. Tips and Common Mistakes
 
 - **Call Set Drag Point every tick while dragging.** If you only call Start Drag, the object grabs but never moves, because nothing updates the point it follows.
 - **Start Drag is ignored while already dragging.** To switch objects, call Drop on the current one first. There is no force-grab action by design.

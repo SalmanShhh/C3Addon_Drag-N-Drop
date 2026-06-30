@@ -70,13 +70,21 @@ function normalizeSnapMode(value) {
   return "radius";
 }
 
-// ["instant", "speed", "spring"]
+// ["instant", "speed", "spring", "grid"]
 function normalizeFollowMode(value) {
   switch (value) {
     case 1: case "1": case "speed":  return "speed";
     case 2: case "2": case "spring": return "spring";
+    case 3: case "3": case "grid":   return "grid";
     default:                          return "instant";
   }
+}
+
+// Quantizes a coordinate to the nearest tile-grid line of the given cell size,
+// offset by origin. A cell size <= 0 leaves the value unchanged (axis is free).
+function snapToGrid(value, cell, origin) {
+  if (!(cell > 0)) return value;
+  return Math.round((value - origin) / cell) * cell + origin;
 }
 
 // Rounds a movement step (dx, dy) to the chosen direction set by snapping the
@@ -125,7 +133,11 @@ export default function (parentClass) {
       this._followMode      = normalizeFollowMode(properties[3]);
       this._springStiffness = Math.max(0, safeNumber(properties[4], 0));
       this._springDamping   = Math.max(0, safeNumber(properties[5], 0));
-      this._enabled         = properties[6] !== false;
+      this._gridW           = Math.max(0, safeNumber(properties[6], 32));
+      this._gridH           = Math.max(0, safeNumber(properties[7], 32));
+      this._gridOriginX     = safeNumber(properties[8], 0);
+      this._gridOriginY     = safeNumber(properties[9], 0);
+      this._enabled         = properties[10] !== false;
 
       // Break action is action-driven only (no panel row); defaults to drop.
       this._breakAction = "drop";
@@ -317,6 +329,13 @@ export default function (parentClass) {
             this.instance.x = targetX;
             this.instance.y = targetY;
           }
+          break;
+        }
+        case "grid": {
+          // Snap the object to the nearest tile-grid cell each tick. A cell
+          // size of 0 on an axis leaves that axis free (no snapping).
+          this.instance.x = snapToGrid(targetX, this._gridW, this._gridOriginX);
+          this.instance.y = snapToGrid(targetY, this._gridH, this._gridOriginY);
           break;
         }
         default: // "instant" — SDK v2 position setters invalidate the bounding box automatically.
@@ -688,6 +707,15 @@ export default function (parentClass) {
       this._springDamping   = Math.max(0, safeNumber(damping, 0));
     }
 
+    // Configures the tile grid used by the "grid" follow mode. A width or
+    // height <= 0 leaves that axis unsnapped.
+    _setGrid(cellWidth, cellHeight, originX, originY) {
+      this._gridW = Math.max(0, safeNumber(cellWidth, 0));
+      this._gridH = Math.max(0, safeNumber(cellHeight, 0));
+      this._gridOriginX = safeNumber(originX, 0);
+      this._gridOriginY = safeNumber(originY, 0);
+    }
+
     _setDirections(directions) {
       this._directions = normalizeDirections(directions);
     }
@@ -778,6 +806,10 @@ export default function (parentClass) {
             { name: "$springDamping", value: this._springDamping, onedit: (v) => { this._springDamping = Math.max(0, safeNumber(v, 0)); } },
             { name: "$springVelX", value: this._springVelX },
             { name: "$springVelY", value: this._springVelY },
+            { name: "$gridW", value: this._gridW, onedit: (v) => { this._gridW = Math.max(0, safeNumber(v, this._gridW)); } },
+            { name: "$gridH", value: this._gridH, onedit: (v) => { this._gridH = Math.max(0, safeNumber(v, this._gridH)); } },
+            { name: "$gridOriginX", value: this._gridOriginX, onedit: (v) => { this._gridOriginX = safeNumber(v, this._gridOriginX); } },
+            { name: "$gridOriginY", value: this._gridOriginY, onedit: (v) => { this._gridOriginY = safeNumber(v, this._gridOriginY); } },
             { name: "$breakDistance", value: this._breakDistance, onedit: (v) => { this._breakDistance = Math.max(0, safeNumber(v, this._breakDistance)); } },
             { name: "$snapRadius", value: this._snapRadius, onedit: (v) => { this._snapRadius = Math.max(0, safeNumber(v, this._snapRadius)); } },
             { name: "$snapMode", value: this._snapMode },
@@ -812,6 +844,10 @@ export default function (parentClass) {
         followMode: this._followMode,
         springStiffness: this._springStiffness,
         springDamping: this._springDamping,
+        gridW: this._gridW,
+        gridH: this._gridH,
+        gridOriginX: this._gridOriginX,
+        gridOriginY: this._gridOriginY,
         snapRadius: this._snapRadius,
         snapMode: this._snapMode,
         magnetStrength: this._magnetStrength,
@@ -830,6 +866,10 @@ export default function (parentClass) {
       this._followMode = o?.followMode !== undefined ? normalizeFollowMode(o.followMode) : this._followMode;
       this._springStiffness = Math.max(0, safeNumber(o?.springStiffness, this._springStiffness));
       this._springDamping   = Math.max(0, safeNumber(o?.springDamping,   this._springDamping));
+      this._gridW = Math.max(0, safeNumber(o?.gridW, this._gridW));
+      this._gridH = Math.max(0, safeNumber(o?.gridH, this._gridH));
+      this._gridOriginX = safeNumber(o?.gridOriginX, this._gridOriginX);
+      this._gridOriginY = safeNumber(o?.gridOriginY, this._gridOriginY);
       this._snapRadius = Math.max(0, safeNumber(o?.snapRadius, this._snapRadius));
       this._snapMode = normalizeSnapMode(o?.snapMode);
       this._magnetStrength = clamp(safeNumber(o?.magnetStrength, this._magnetStrength), 0, 1);

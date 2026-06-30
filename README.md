@@ -1,26 +1,15 @@
 <img src="./src/icon.svg" width="100" /><br>
 # Drag N Drop
 <i>Event-driven drag & drop: you decide when a drag starts and stops, and the object follows a drag point you update each tick. A drop-in replacement for Construct 3's built-in Drag & Drop, driven through Start Drag / Drop / Set Drag Point actions so a controller, touch gesture, AI routine, or virtual cursor can all drive it. Optional solid push-out, axis lock, break distance, and automatic throw-velocity measurement.</i> <br>
-### Version 1.3.0.0
+### Version 1.4.0.0
 
-[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_Drag-N-Drop/releases/download/salmanshh_dragndrop-1.3.0.0.c3addon/salmanshh_dragndrop-1.3.0.0.c3addon)
+[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_Drag-N-Drop/releases/download/salmanshh_dragndrop-1.4.0.0.c3addon/salmanshh_dragndrop-1.4.0.0.c3addon)
 <br>
 <sub> [See all releases](https://github.com/SalmanShhh/C3Addon_Drag-N-Drop/releases) </sub> <br>
 
-#### What's New in 1.3.0.0
-- **Added:** - Follow Mode panel property (combo: Instant / Constant Speed / Spring Physics) that explicitly selects how the object chases the drag point
-- **Added:** - Spring Stiffness and Spring Damping panel properties
-- **Added:** - Set follow mode action to switch movement mode at runtime
-- **Added:** - Set spring action to tune stiffness and damping at runtime
-- **Added:** - SpringVelocityX and SpringVelocityY expressions for reading the object's live spring velocity
-- **Added:** - Spring-physics movement in the runtime: Hooke's law restoring force plus viscous damping, integrated with semi-implicit Euler for frame-rate stability
-- **Added:** - Save/load persistence for followMode
-- **Added:** -
-- **Added:** -
-- **Added:** -
-- **Added:** -
-- **Added:** -
-- **Changed:** - Throw measurement now samples the object's own spring velocity in spring mode instead of the drag-point delta, giving the physically correct release velocity
+#### What's New in 1.4.0.0
+- **Added:** - "Grid" Follow Mode: fourth Follow Mode option that snaps the dragged object to a tile grid, plus a Set grid action and 4 grid panel properties (Cell Width/Height, Origin X/Y).
+- **Added:** - Spring Physics follow mode (earlier): Set spring action and SpringVelocityX/Y expressions.
 
 <sub>[View full changelog](#changelog)</sub>
 
@@ -66,6 +55,10 @@ npm run dev
 | Follow Mode | How the object moves toward the drag point: Instant (snap), Constant Speed (uses Follow Speed), or Spring Physics (uses Spring Stiffness and Damping). | combo |
 | Spring Stiffness | Spring acceleration coefficient (pixels/s^2 per pixel). 300 is a responsive, lively default. Only active when Follow Mode is Spring Physics. | float |
 | Spring Damping | Velocity bleed-off per second that settles the bounce. 20 gives a gentle overshoot; ~2 * sqrt(stiffness) is critical damping (no overshoot). Only active when Follow Mode is Spring Physics. | float |
+| Grid Cell Width | Tile width in pixels for the Grid follow mode. 0 leaves the X axis unsnapped. Override at runtime with Set grid. | float |
+| Grid Cell Height | Tile height in pixels for the Grid follow mode. 0 leaves the Y axis unsnapped. Override at runtime with Set grid. | float |
+| Grid Origin X | X offset of the grid origin in pixels. Shifts where cell boundaries fall. | float |
+| Grid Origin Y | Y offset of the grid origin in pixels. Shifts where cell boundaries fall. | float |
 | Enabled | Whether the behaviour is active when the layout starts. | check |
 
 
@@ -82,8 +75,9 @@ npm run dev
 | Start drag at object | Begins dragging this object at the target's position and keeps the drag point glued to that object each tick, so it sticks to a moving target. Ignored if already dragging. | Object             *(object)* <br>Grab mode             *(combo)* <br> |
 | Set break distance | If the gap to the drag point grows past the distance, the drag ends automatically. 0 disables this. | Distance             *(number)* <br>Action             *(combo)* <br> |
 | Set directions | Constrains drag movement, 8Direction style: free, a single axis, or snapped to 4 / 8 directions. | Directions             *(combo)* <br> |
-| Set follow mode | Switches how the object moves toward the drag point: Instant (snap each tick), Constant Speed (uses Follow Speed), or Spring Physics (uses Spring Stiffness and Damping). | Mode             *(combo)* <br> |
+| Set follow mode | Switches how the object moves toward the drag point: Instant (snap each tick), Constant Speed (uses Follow Speed), Spring Physics (uses Spring Stiffness and Damping), or Grid (snaps to a tile grid set by the Set grid action). | Mode             *(combo)* <br> |
 | Set follow speed | How fast the object catches up to the drag point, in pixels per second. 0 = instant snap. | Speed             *(number)* <br> |
+| Set grid | Sets the tile grid used by the Grid follow mode: cell width and height plus an origin offset. While Follow Mode is Grid, the object snaps to the nearest cell. A width or height of 0 leaves that axis unsnapped. | Cell width             *(number)* <br>Cell height             *(number)* <br>Origin X             *(number)* <br>Origin Y             *(number)* <br> |
 | Set spring | Sets the spring-physics parameters. Stiffness controls pull strength (pixels/s^2 per pixel of displacement); damping controls oscillation bleed-off (1/s). Does not switch the follow mode — use Set follow mode to Spring Physics first. | Stiffness             *(number)* <br>Damping             *(number)* <br> |
 | Add snap object | Registers an object as a snap and magnet target by its position. Use a For each loop to add many. Needs a snap radius to take effect. | Object             *(object)* <br> |
 | Add snap position | Registers a world-space position as a snap and magnet target. Needs a snap radius to take effect. | X             *(number)* <br>Y             *(number)* <br> |
@@ -127,6 +121,10 @@ npm run dev
 
 ---
 ## Changelog
+
+**1.4.0.0**
+- **Added:** - "Grid" Follow Mode: fourth Follow Mode option that snaps the dragged object to a tile grid, plus a Set grid action and 4 grid panel properties (Cell Width/Height, Origin X/Y).
+- **Added:** - Spring Physics follow mode (earlier): Set spring action and SpringVelocityX/Y expressions.
 
 **1.3.0.0**
 - **Added:** - Follow Mode panel property (combo: Instant / Constant Speed / Spring Physics) that explicitly selects how the object chases the drag point

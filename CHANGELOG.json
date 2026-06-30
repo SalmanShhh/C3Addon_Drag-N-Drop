@@ -38,5 +38,10 @@
     "added": "- Follow Mode panel property (combo: Instant / Constant Speed / Spring Physics) that explicitly selects how the object chases the drag point\n- Spring Stiffness and Spring Damping panel properties\n- Set follow mode action to switch movement mode at runtime\n- Set spring action to tune stiffness and damping at runtime\n- SpringVelocityX and SpringVelocityY expressions for reading the object's live spring velocity\n- Spring-physics movement in the runtime: Hooke's law restoring force plus viscous damping, integrated with semi-implicit Euler for frame-rate stability\n- Save/load persistence for followMode\n- \n- \n- \n- \n- \n\n",
     "changed": "- Throw measurement now samples the object's own spring velocity in spring mode instead of the drag-point delta, giving the physically correct release velocity\n",
     "fixed": ""
+  },
+  "1.4.0.0": {
+    "added": "- \"Grid\" Follow Mode: fourth Follow Mode option that snaps the dragged object to a tile grid, plus a Set grid action and 4 grid panel properties (Cell Width/Height, Origin X/Y).\n- Spring Physics follow mode (earlier): Set spring action and SpringVelocityX/Y expressions.",
+    "changed": "",
+    "fixed": ""
   }
 }
