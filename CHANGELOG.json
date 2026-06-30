@@ -43,5 +43,10 @@
     "added": "- \"Grid\" Follow Mode: fourth Follow Mode option that snaps the dragged object to a tile grid, plus a Set grid action and 4 grid panel properties (Cell Width/Height, Origin X/Y).\n- Spring Physics follow mode (earlier): Set spring action and SpringVelocityX/Y expressions.",
     "changed": "",
     "fixed": ""
+  },
+  "1.4.0.1": {
+    "added": "",
+    "changed": "",
+    "fixed": ""
   }
 }
