@@ -70,6 +70,15 @@ function normalizeSnapMode(value) {
   return "radius";
 }
 
+// ["instant", "speed", "spring"]
+function normalizeFollowMode(value) {
+  switch (value) {
+    case 1: case "1": case "speed":  return "speed";
+    case 2: case "2": case "spring": return "spring";
+    default:                          return "instant";
+  }
+}
+
 // Rounds a movement step (dx, dy) to the chosen direction set by snapping the
 // step's direction and projecting onto it. This rounds the way the drag is
 // actually moving this tick, so the object travels in 4 / 8 direction lines.
@@ -110,10 +119,13 @@ export default function (parentClass) {
       // NOTE: order must match the properties array in config.caw.js, where
       // "Enabled" is intentionally kept last.
       const properties = this._getInitProperties() || [];
-      this._followSpeed = Math.max(0, safeNumber(properties[0], 0));
-      this._directions = normalizeDirections(properties[1]);
-      this._breakDistance = Math.max(0, safeNumber(properties[2], 0));
-      this._enabled = properties[3] !== false;
+      this._followSpeed     = Math.max(0, safeNumber(properties[0], 0));
+      this._directions      = normalizeDirections(properties[1]);
+      this._breakDistance   = Math.max(0, safeNumber(properties[2], 0));
+      this._followMode      = normalizeFollowMode(properties[3]);
+      this._springStiffness = Math.max(0, safeNumber(properties[4], 0));
+      this._springDamping   = Math.max(0, safeNumber(properties[5], 0));
+      this._enabled         = properties[6] !== false;
 
       // Break action is action-driven only (no panel row); defaults to drop.
       this._breakAction = "drop";
@@ -144,6 +156,10 @@ export default function (parentClass) {
       this._hasThrowOverride = false;
       this._history = [];
       this._historyCursor = 0;
+
+      // Spring-physics follow state.
+      this._springVelX = 0;
+      this._springVelY = 0;
 
       // Why the last drag ended: "manual" or "broke_distance".
       this._dropReason = "manual";
@@ -268,24 +284,45 @@ export default function (parentClass) {
         }
       }
 
-      // Follow speed 0 snaps exactly; otherwise move at most speed*dt toward it.
-      if (this._followSpeed > 0 && dt > 0) {
-        const dx = targetX - this.instance.x;
-        const dy = targetY - this.instance.y;
-        const distance = Math.hypot(dx, dy);
-        const maxStep = this._followSpeed * dt;
-        if (distance > maxStep && distance > 1e-6) {
-          const ratio = maxStep / distance;
-          this.instance.x += dx * ratio;
-          this.instance.y += dy * ratio;
-        } else {
+      // Mode-dispatched movement: each mode is self-contained and predictable.
+      switch (this._followMode) {
+        case "spring": {
+          if (dt > 0) {
+            // Semi-implicit Euler: update velocity first, then position.
+            // Hooke's law restoring force minus viscous damping.
+            const ax = this._springStiffness * (targetX - this.instance.x) - this._springDamping * this._springVelX;
+            const ay = this._springStiffness * (targetY - this.instance.y) - this._springDamping * this._springVelY;
+            this._springVelX += ax * dt;
+            this._springVelY += ay * dt;
+            this.instance.x += this._springVelX * dt;
+            this.instance.y += this._springVelY * dt;
+          }
+          break;
+        }
+        case "speed": {
+          if (this._followSpeed > 0 && dt > 0) {
+            const dx = targetX - this.instance.x;
+            const dy = targetY - this.instance.y;
+            const dist = Math.hypot(dx, dy);
+            const maxStep = this._followSpeed * dt;
+            if (dist > maxStep && dist > 1e-6) {
+              const ratio = maxStep / dist;
+              this.instance.x += dx * ratio;
+              this.instance.y += dy * ratio;
+            } else {
+              this.instance.x = targetX;
+              this.instance.y = targetY;
+            }
+          } else {
+            this.instance.x = targetX;
+            this.instance.y = targetY;
+          }
+          break;
+        }
+        default: // "instant" — SDK v2 position setters invalidate the bounding box automatically.
           this.instance.x = targetX;
           this.instance.y = targetY;
-        }
-      } else {
-        // SDK v2 position setters invalidate the bounding box automatically.
-        this.instance.x = targetX;
-        this.instance.y = targetY;
+          break;
       }
 
       // Gap between the object and the drag point; grows when the object cannot
@@ -298,12 +335,17 @@ export default function (parentClass) {
       // Live snap state for the Is Snapping condition and SnapTarget expressions.
       this._updateSnapState();
 
-      // Sample drag-point velocity for the throw, then advance the previous point.
+      // Sample velocity for throw: spring mode uses the object's own velocity
+      // (physically correct); other modes use the drag-point delta (hand speed).
       if (dt > 0) {
-        this._recordVelocity(
-          (this._dragPointX - this._prevDragPointX) / dt,
-          (this._dragPointY - this._prevDragPointY) / dt
-        );
+        if (this._followMode === "spring") {
+          this._recordVelocity(this._springVelX, this._springVelY);
+        } else {
+          this._recordVelocity(
+            (this._dragPointX - this._prevDragPointX) / dt,
+            (this._dragPointY - this._prevDragPointY) / dt
+          );
+        }
       }
       this._prevDragPointX = this._dragPointX;
       this._prevDragPointY = this._dragPointY;
@@ -508,6 +550,8 @@ export default function (parentClass) {
       this._throwVelX = 0;
       this._throwVelY = 0;
       this._throwSpeed = 0;
+      this._springVelX = 0;
+      this._springVelY = 0;
       this._isSnapping = false;
       this._snappedUid = -1;
       this._resetThrowSampling();
@@ -628,6 +672,22 @@ export default function (parentClass) {
       this._followSpeed = Math.max(0, safeNumber(speed, 0));
     }
 
+    _setFollowMode(mode) {
+      const prev = this._followMode;
+      this._followMode = normalizeFollowMode(mode);
+      // Clear spring velocity when leaving spring mode so residual velocity
+      // does not carry over if the mode is switched back during a drag.
+      if (prev === "spring" && this._followMode !== "spring") {
+        this._springVelX = 0;
+        this._springVelY = 0;
+      }
+    }
+
+    _setSpring(stiffness, damping) {
+      this._springStiffness = Math.max(0, safeNumber(stiffness, 0));
+      this._springDamping   = Math.max(0, safeNumber(damping, 0));
+    }
+
     _setDirections(directions) {
       this._directions = normalizeDirections(directions);
     }
@@ -713,6 +773,11 @@ export default function (parentClass) {
             { name: "$distanceFromPoint", value: this._distanceFromPoint },
             { name: "$directions", value: this._directions },
             { name: "$followSpeed", value: this._followSpeed, onedit: (v) => { this._followSpeed = Math.max(0, safeNumber(v, this._followSpeed)); } },
+            { name: "$followMode", value: this._followMode, onedit: (v) => { this._setFollowMode(v); } },
+            { name: "$springStiffness", value: this._springStiffness, onedit: (v) => { this._springStiffness = Math.max(0, safeNumber(v, 0)); } },
+            { name: "$springDamping", value: this._springDamping, onedit: (v) => { this._springDamping = Math.max(0, safeNumber(v, 0)); } },
+            { name: "$springVelX", value: this._springVelX },
+            { name: "$springVelY", value: this._springVelY },
             { name: "$breakDistance", value: this._breakDistance, onedit: (v) => { this._breakDistance = Math.max(0, safeNumber(v, this._breakDistance)); } },
             { name: "$snapRadius", value: this._snapRadius, onedit: (v) => { this._snapRadius = Math.max(0, safeNumber(v, this._snapRadius)); } },
             { name: "$snapMode", value: this._snapMode },
@@ -744,6 +809,9 @@ export default function (parentClass) {
         directions: this._directions,
         breakDistance: this._breakDistance,
         breakAction: this._breakAction,
+        followMode: this._followMode,
+        springStiffness: this._springStiffness,
+        springDamping: this._springDamping,
         snapRadius: this._snapRadius,
         snapMode: this._snapMode,
         magnetStrength: this._magnetStrength,
@@ -758,6 +826,10 @@ export default function (parentClass) {
       this._directions = normalizeDirections(o?.directions);
       this._breakDistance = Math.max(0, safeNumber(o?.breakDistance, this._breakDistance));
       this._breakAction = o?.breakAction === "cancel" ? "cancel" : "drop";
+      // Fall back to the panel-configured mode when an older save lacks the field.
+      this._followMode = o?.followMode !== undefined ? normalizeFollowMode(o.followMode) : this._followMode;
+      this._springStiffness = Math.max(0, safeNumber(o?.springStiffness, this._springStiffness));
+      this._springDamping   = Math.max(0, safeNumber(o?.springDamping,   this._springDamping));
       this._snapRadius = Math.max(0, safeNumber(o?.snapRadius, this._snapRadius));
       this._snapMode = normalizeSnapMode(o?.snapMode);
       this._magnetStrength = clamp(safeNumber(o?.magnetStrength, this._magnetStrength), 0, 1);

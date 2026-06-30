@@ -127,6 +127,43 @@ export const properties = [
     desc: "Gap to the drag point that auto-ends the drag. 0 disables it.",
   },
   {
+    type: PROPERTY_TYPE.COMBO,
+    id: "followMode",
+    options: {
+      initialValue: "speed",
+      interpolatable: false,
+      items: [
+        { instant: "Instant" },
+        { speed: "Constant Speed" },
+        { spring: "Spring Physics" },
+      ],
+    },
+    name: "Follow Mode",
+    desc: "How the object moves toward the drag point: Instant (snap), Constant Speed (uses Follow Speed), or Spring Physics (uses Spring Stiffness and Damping).",
+  },
+  {
+    type: PROPERTY_TYPE.FLOAT,
+    id: "springStiffness",
+    options: {
+      initialValue: 300,
+      minValue: 0,
+      interpolatable: false,
+    },
+    name: "Spring Stiffness",
+    desc: "Spring acceleration coefficient (pixels/s^2 per pixel). 300 is a responsive, lively default. Only active when Follow Mode is Spring Physics.",
+  },
+  {
+    type: PROPERTY_TYPE.FLOAT,
+    id: "springDamping",
+    options: {
+      initialValue: 20,
+      minValue: 0,
+      interpolatable: false,
+    },
+    name: "Spring Damping",
+    desc: "Velocity bleed-off per second that settles the bounce. 20 gives a gentle overshoot; ~2 * sqrt(stiffness) is critical damping (no overshoot). Only active when Follow Mode is Spring Physics.",
+  },
+  {
     type: PROPERTY_TYPE.CHECK,
     id: "enabled",
     options: {

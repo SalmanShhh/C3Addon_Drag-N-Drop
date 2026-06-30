@@ -1,6 +1,6 @@
 # Drag N Drop Guide
 
-Drag N Drop is a Construct 3 behaviour that is a drop-in replacement for the built-in Drag & Drop, rebuilt so that **you** decide when a drag starts and stops. The built-in behaviour is permanently wired to the mouse or touch. Drag N Drop is driven through events instead, so a controller button, a touch gesture, an AI routine, or a virtual cursor can all start and stop a drag through the same two actions. While an object is dragged it follows a **drag point** you update each tick (usually the cursor or touch position). The behaviour can constrain the object to a direction set, magnetise it toward snap targets, auto-drop it when it gets pulled too far, and it measures throw velocity for you so flick-to-throw needs no manual tracking. This guide explains how the behaviour works and how to wire every property, action, condition, expression, and debugger field into a real project.
+Drag N Drop is a Construct 3 behaviour that is a drop-in replacement for the built-in Drag & Drop, rebuilt so that **you** decide when a drag starts and stops. The built-in behaviour is permanently wired to the mouse or touch. Drag N Drop is driven through events instead, so a controller button, a touch gesture, an AI routine, or a virtual cursor can all start and stop a drag through the same two actions. While an object is dragged it follows a **drag point** you update each tick (usually the cursor or touch position). The behaviour can constrain the object to a direction set, magnetise it toward snap targets, auto-drop it when it gets pulled too far, and follow the point in one of three **follow modes**: instant, a capped constant speed, or **spring physics** that overshoots and settles like the object is tied to the drag point with a spring joint. It also measures throw velocity for you so flick-to-throw needs no manual tracking. This guide explains how the behaviour works and how to wire every property, action, condition, expression, and debugger field into a real project.
 
 ## Table of Contents
 
@@ -10,7 +10,7 @@ Drag N Drop is a Construct 3 behaviour that is a drop-in replacement for the bui
 4. [Behaviour Properties](#4-behaviour-properties)
 5. [Drag Lifecycle: Start Drag and Drop](#5-drag-lifecycle-start-drag-and-drop)
 6. [The Drag Point](#6-the-drag-point)
-7. [Grab Modes and Follow Speed](#7-grab-modes-and-follow-speed)
+7. [Follow Modes: Grab Mode, Follow Speed, and Spring Physics](#7-follow-modes-grab-mode-follow-speed-and-spring-physics)
 8. [Directions (Movement Lock)](#8-directions-movement-lock)
 9. [Break Distance](#9-break-distance)
 10. [Throw Velocity](#10-throw-velocity)
@@ -46,6 +46,7 @@ Drag N Drop replaces that with two actions, **Start Drag** and **Drop**, that yo
 ### Key design decisions
 
 - **You own the drag point, Drag N Drop reads it.** The behaviour never reads the mouse or any input device. You call Set Drag Point each tick. The object follows that point. If you never set it, the object does not move while dragged.
+- **The follow mode is explicit, never guessed.** A single **Follow Mode** choice (Instant, Constant Speed, or Spring Physics) decides how the object chases the drag point. The mode is never inferred from whether a speed or stiffness happens to be zero, so the feel is always exactly what you selected, and you can read it back in one debugger field.
 - **Start and stop are events, never automatic.** Start Drag begins a drag, Drop ends it. Hover detection, click radius, and hold gestures are your event-sheet conditions.
 - **One action covers both ways to end a drag.** Drop takes a *How* choice. **Release** fires On Dropped and applies the measured throw. **Cancel** ends the drag silently with no throw and fires On Drag Cancelled.
 - **Break distance auto-ends a yanked drag.** Set a break distance and, when the gap between the object and the drag point grows past it (because a slow follow speed left the object lagging behind a fast cursor), the object automatically drops or cancels.
@@ -59,7 +60,9 @@ Drag N Drop replaces that with two actions, **Start Drag** and **Drop**, that yo
 | --- | --- |
 | **Drag Point** | The world-space point the dragged object follows each tick. You set this every frame while dragging, usually the cursor or touch position. |
 | **Grab Mode** | Chosen when the drag starts: keep the object's offset from the drag point, or centre the object on it. |
-| **Follow Speed** | How quickly the object catches up to the drag point. 0 snaps instantly, higher values add a smooth lag. |
+| **Follow Mode** | How the object moves toward the drag point: Instant (snap), Constant Speed (capped pixels per second), or Spring Physics (a spring-damper that overshoots and settles). |
+| **Follow Speed** | In Constant Speed mode, how quickly the object catches up to the drag point. 0 snaps instantly, higher values cap the catch-up speed. |
+| **Spring Stiffness / Damping** | In Spring Physics mode, the pull strength toward the drag point and the bleed-off that calms the bounce. Together they decide how lively or settled the spring feels. |
 | **Directions** | A movement lock, 8Direction style: free, a single axis, or snapped to 4 or 8 directions. |
 | **Break Distance** | The maximum gap allowed between the object and the drag point. Exceeding it auto-drops or auto-cancels the drag. |
 | **Snap Target** | A registered position or object the dragged object can magnetise toward and snap onto. |
@@ -97,9 +100,12 @@ The panel keeps a small set of the most common defaults. Every one of them can a
 
 | Property | Type | Default | Description |
 | --- | --- | --- | --- |
-| **Follow Speed** | Number | 0 | Max speed in pixels per second the object catches up to the drag point. 0 is an instant snap. |
+| **Follow Speed** | Number | 0 | In Constant Speed mode, the max speed in pixels per second the object catches up to the drag point. 0 is an instant snap. |
 | **Directions** | Combo | Free (360) | Movement lock: Free, Up & Down, Left & Right, 4 Directions, or 8 Directions. |
 | **Break Distance** | Number | 0 | Gap to the drag point that auto-ends the drag. 0 disables it. |
+| **Follow Mode** | Combo | Constant Speed | How the object moves toward the drag point: Instant (snap), Constant Speed (uses Follow Speed), or Spring Physics (uses Spring Stiffness and Damping). With the default Follow Speed of 0, Constant Speed snaps instantly, so the out-of-box feel is unchanged. |
+| **Spring Stiffness** | Number | 300 | Spring acceleration coefficient (pixels/s² per pixel). Only used in Spring Physics mode. 300 is a responsive, lively default. |
+| **Spring Damping** | Number | 20 | Velocity bleed-off per second that calms the spring's bounce. Only used in Spring Physics mode. Around 2 × √stiffness is critically damped (no overshoot); the default 20 leaves a gentle bounce. |
 | **Enabled** | Boolean | true | Whether the behaviour is active when the layout starts. Kept last in the panel by convention. |
 
 Snapping and magnetism are not on the panel because they need targets registered through events. They default to off (snap radius 0, magnet strength 0) and are turned on through their actions. See [Snapping, Magnetism, and Homing](#11-snapping-magnetism-and-homing).
@@ -149,7 +155,17 @@ Event: Magnet (DragNDrop) -> Is dragging
 
 **Gotcha:** If you never call Set Drag Point, the object stays where it was grabbed. The drag point starts at the value you passed to Start Drag and only moves when you move it.
 
-## 7. Grab Modes and Follow Speed
+## 7. Follow Modes: Grab Mode, Follow Speed, and Spring Physics
+
+The **follow mode** decides how the object travels toward the drag point each tick. There are three modes, set on the panel or with **Set follow mode**, and each one reads its own settings:
+
+| Follow Mode | What it does | Reads |
+| --- | --- | --- |
+| **Instant** | The object snaps exactly onto its target every tick. Crisp and precise. | nothing extra |
+| **Constant Speed** | The object closes the gap at a capped pixels-per-second rate, so it trails a fast pointer and catches up when it slows. This is the default, and with the default Follow Speed of 0 it snaps instantly. | Follow Speed |
+| **Spring Physics** | The object is pulled toward the target like it is tied on a spring: it accelerates, overshoots, and settles. | Spring Stiffness, Spring Damping |
+
+The mode is explicit. Spring Physics is always a spring even if the stiffness is misconfigured, and Constant Speed is always speed-based even if the speed is 0 (in which case it snaps). Nothing is inferred from a value being zero.
 
 ### Grab mode
 
@@ -168,17 +184,51 @@ Event: On Right mouse button Clicked on Card
   // card snaps so its origin sits under the cursor
 ```
 
-### Follow speed
+### Follow speed (Constant Speed mode)
 
-**Follow speed** is the maximum speed, in pixels per second, at which the object closes the gap to the drag point. The default of 0 snaps the object exactly onto its target every tick. A positive value caps how fast it can move, so when the drag point outruns it the object trails behind smoothly and catches up when the pointer slows.
+**Follow speed** is the maximum speed, in pixels per second, at which the object closes the gap to the drag point while in **Constant Speed** mode. A positive value caps how fast it can move, so when the drag point outruns it the object trails behind smoothly and catches up when the pointer slows. A follow speed of 0 in Constant Speed mode snaps the object exactly onto its target every tick.
 
 ```text
 Event: On start of layout
+  Action: HeavyCrate (DragNDrop) -> Set follow mode to Constant Speed
   Action: HeavyCrate (DragNDrop) -> Set follow speed to 600
   // the crate can chase the cursor at up to 600 px/s and lags behind a fast flick
 ```
 
-**Gotcha:** Follow speed is a speed cap, not a smoothing percentage. A high value (for example 2000) keeps up with almost any normal pointer motion and feels close to instant. A low value (for example 150) produces a heavy, draggy feel.
+**Gotcha:** Follow speed only does something in Constant Speed mode, and it is a speed cap, not a smoothing percentage. A high value (for example 2000) keeps up with almost any normal pointer motion and feels close to instant. A low value (for example 150) produces a heavy, draggy feel.
+
+### Spring physics (Spring Physics mode)
+
+**Spring Physics** mode attaches the object to the drag point with a virtual spring. Instead of moving at a fixed rate, the object **accelerates** toward the point under a spring force, builds up velocity, overshoots, and then settles, exactly like dragging something on a spring joint. Two numbers shape the feel, set with **Set spring**:
+
+- **Stiffness** is the pull strength (pixels per second squared, per pixel of distance). Higher stiffness snaps toward the point faster and harder.
+- **Damping** bleeds velocity off each second. Low damping leaves a lively, bouncy wobble; high damping calms it until the object glides in with no overshoot at all.
+
+```text
+Event: On start of layout
+  Action: Token (DragNDrop) -> Set follow mode to Spring Physics
+  Action: Token (DragNDrop) -> Set spring stiffness 200 damping 10
+  // the token springs toward the cursor with a lively, bouncy lag
+
+Event: On Left mouse button Clicked on Token
+  Action: Token (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: Token (DragNDrop) -> Is dragging
+  Action: Token (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+```
+
+The relationship between stiffness and damping is what decides the character of the spring. As a guide, **critical damping** (the fastest settle with no bounce) is around `damping = 2 × √stiffness`:
+
+| Stiffness | Damping | Feel |
+| --- | --- | --- |
+| 200 | 10 | Lively, obvious oscillation and bounce |
+| 200 | 28 | Critically damped, fast settle with no overshoot |
+| 200 | 60 | Overdamped, slow and heavy with no bounce |
+| 600 | 30 | Snappy, quick settle with a hint of bounce |
+| 80 | 5 | Floaty, slow wide wobble |
+
+While in spring mode the object's live velocity is readable through **SpringVelocityX** and **SpringVelocityY**, which is handy for a trajectory preview, a stretch effect, or feeding a particle trail. On release this same velocity becomes the throw (see [Throw Velocity](#10-throw-velocity)).
+
+**Gotcha:** A bouncy spring (low damping) naturally overshoots, so the gap to the drag point spikes during the overshoot. If you also use a **break distance**, give it generous headroom in spring mode or the overshoot can trip an auto-drop you did not intend. Switching the follow mode away from Spring Physics clears the spring's stored velocity, so the object will not keep coasting from a previous bounce.
 
 ## 8. Directions (Movement Lock)
 
@@ -231,7 +281,9 @@ Event: Crate (DragNDrop) -> On dropped
 
 ## 10. Throw Velocity
 
-Throw is **always measured, never applied**. Each tick the behaviour records how fast the drag point is moving into a small ring buffer. On any release (a Drop with Release, or a break-distance Drop), it averages those samples and hands the result to On Dropped as **ThrowVelocityX**, **ThrowVelocityY**, and **ThrowSpeed**, in pixels per second. The behaviour never pushes this into a movement system. You read the values, scale them as you like, and route them to Physics, Bullet, or your own system.
+Throw is **always measured, never applied**. Each tick the behaviour records a velocity sample into a small ring buffer. On any release (a Drop with Release, or a break-distance Drop), it averages those samples and hands the result to On Dropped as **ThrowVelocityX**, **ThrowVelocityY**, and **ThrowSpeed**, in pixels per second. The behaviour never pushes this into a movement system. You read the values, scale them as you like, and route them to Physics, Bullet, or your own system.
+
+What gets sampled depends on the follow mode. In **Instant** and **Constant Speed** modes the sample is the **drag point's** speed (your hand speed). In **Spring Physics** mode the sample is the **object's own spring velocity**, which is the physically correct throw: a lagging, springy object leaves your hand slower than the cursor was moving, and the measured throw reflects where the object was actually heading rather than where the cursor was.
 
 ```text
 Event: SandboxObject (DragNDrop) -> On dropped
@@ -341,7 +393,9 @@ Event: Item (DragNDrop) -> Is dragging
 
 | Action | Description |
 | --- | --- |
-| **Set follow speed** | Sets the maximum speed in pixels per second at which the object catches up to the drag point. 0 is an instant snap. |
+| **Set follow mode** | Chooses how the object moves toward the drag point: Instant (snap), Constant Speed (uses Follow Speed), or Spring Physics (uses Spring Stiffness and Damping). |
+| **Set follow speed** | Sets the maximum speed in pixels per second at which the object catches up to the drag point in Constant Speed mode. 0 is an instant snap. |
+| **Set spring** | Sets the Spring Physics stiffness (pull strength) and damping (bounce bleed-off). Tune these for the feel of the spring; does not change the follow mode. |
 | **Set directions** | Constrains movement to Free, Up & Down, Left & Right, 4 Directions, or 8 Directions. |
 | **Set break distance** | Sets the maximum gap to the drag point before the drag auto-ends, and whether that end is a Drop or a Cancel. 0 disables it. |
 
@@ -389,6 +443,8 @@ These are the non-trigger state checks. The trigger conditions are listed separa
 | **DragPointX** | number | Current world-space X of the drag point. |
 | **DragPointY** | number | Current world-space Y of the drag point. |
 | **DistanceFromPoint** | number | Current gap in pixels between the object and the drag point. Grows while the object lags behind a fast cursor, and drives the break-distance check. |
+| **SpringVelocityX** | number | X component of the object's current spring velocity in pixels per second. Valid while in Spring Physics mode, and equals ThrowVelocityX at the moment of a spring-mode release. |
+| **SpringVelocityY** | number | Y component of the object's current spring velocity in pixels per second. Valid while in Spring Physics mode, and equals ThrowVelocityY at the moment of a spring-mode release. |
 | **SnapTargetX** | number | X of the nearest snap target. While dragging it tracks the nearest target, and after a snap it is the snapped position. |
 | **SnapTargetY** | number | Y of the nearest snap target. While dragging it tracks the nearest target, and after a snap it is the snapped position. |
 | **SnappedObjectUID** | number | UID of the object snapped to on the last drop, or -1 if the snap was a position or no snap occurred. |
@@ -507,6 +563,29 @@ Event: Disc (DragNDrop) -> On dropped
 ```
 
 Tip: Scale ThrowSpeed if the raw drag-point speed feels too strong, and use Set throw velocity (0, 0) before Drop when a particular release should carry no momentum.
+
+### System G. Spring-physics follow
+
+Attaches the object to the drag point with a spring so it overshoots and settles instead of tracking rigidly.
+
+- Scenario: A token should feel bouncy and alive as it chases the cursor, with the bounce tuned at runtime.
+
+```text
+Event: On start of layout
+  Action: Token (DragNDrop) -> Set follow mode to Spring Physics
+  Action: Token (DragNDrop) -> Set spring stiffness 200 damping 10
+
+Event: On Left mouse button Clicked on Token
+  Action: Token (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: Token (DragNDrop) -> Is dragging
+  Action: Token (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+
+Event: On Right mouse button Clicked
+  Action: Token (DragNDrop) -> Set spring stiffness 200 damping 28
+  // swap to a critically damped spring (no overshoot) without touching the mode
+```
+
+Tip: Keep stiffness fixed and raise damping toward 2 × √stiffness to take the bounce out, or lower it for more wobble. The follow mode stays Spring Physics throughout; Set spring only retunes the feel.
 
 ## 17. Game Use Cases
 
@@ -1062,6 +1141,150 @@ Event: Marker (DragNDrop) -> On dropped
 
 Note: Overlap mode tests the cursor against each territory's collision shape, so an irregular region is matched exactly where a radius cannot. A drop normally moves the object onto the target's origin, so here On Snapped repositions the marker to DragPointX/Y to leave it exactly where the player dropped it.
 
+### 27. Bouncy snap into an inventory slot
+
+**Scenario:** An item should spring toward the cursor with a satisfying overshoot while held, then bounce into the nearest slot when released. (Orthodox)
+
+```text
+Event: On start of layout
+  Action: Item (DragNDrop) -> Set follow mode to Spring Physics
+  Action: Item (DragNDrop) -> Set spring stiffness 300 damping 18
+  For each Slot
+  Action: Item (DragNDrop) -> Add snap object Slot
+  Action: Item (DragNDrop) -> Set snap radius to 44
+  Action: Item (DragNDrop) -> Set magnet strength to 0.5
+
+Event: On Left mouse button Clicked on Item
+  Action: Item (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: Item (DragNDrop) -> Is dragging
+  Action: Item (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+
+Event: On Left mouse button Released
+  Action: Item (DragNDrop) -> Drop (Release)
+Event: Item (DragNDrop) -> On snapped
+  Action: Audio -> Play "click" not looping
+```
+
+Note: Spring mode adds the juicy overshoot while dragging; snapping still places the item exactly on the slot on release and suppresses the throw, so the bounce never flings it back out. A moderate damping of 18 keeps the wobble pleasant rather than chaotic.
+
+### 28. Elastic notification banner
+
+**Scenario:** A HUD banner slides in from offscreen and wobbles elastically to rest, driven entirely by the behaviour with no pointer involved. (Orthodox)
+
+```text
+Event: On start of layout
+  Action: Banner (DragNDrop) -> Set follow mode to Spring Physics
+  Action: Banner (DragNDrop) -> Set spring stiffness 180 damping 12
+  Action: Banner (DragNDrop) -> Start drag at (Banner.X, Banner.Y) using Center on point
+  // grab the banner by itself so it follows a target point we control
+
+Event: On notification raised
+  Action: Banner (DragNDrop) -> Set drag point to (BannerRestX, BannerRestY)
+  // the banner springs up to its resting slot and bounces to a stop
+
+Event: On notification dismissed
+  Action: Banner (DragNDrop) -> Set drag point to (BannerRestX, 0 - Banner.Height)
+  // springs back offscreen
+```
+
+Note: The drag point does not have to be an input device. Here it is a fixed UI anchor, so the spring becomes a self-contained "ease with overshoot" animator for menus, toasts, and panels, no tweening plugin required.
+
+### 29. Wobbly slime you can grab
+
+**Scenario:** A slime creature jiggles and wobbles as the player drags it around, feeling soft and alive. (Unorthodox)
+
+```text
+Event: On start of layout
+  Action: Slime (DragNDrop) -> Set follow mode to Spring Physics
+  Action: Slime (DragNDrop) -> Set spring stiffness 120 damping 6
+  // low stiffness and low damping give a loose, gelatinous wobble
+
+Event: On Touch start on Slime
+  Action: Slime (DragNDrop) -> Start drag at (Touch.X, Touch.Y) using Keep offset
+Event: Slime (DragNDrop) -> Is dragging
+  Action: Slime (DragNDrop) -> Set drag point to (Touch.X, Touch.Y)
+  Action: Slime -> Set width to 64 + abs(Slime.DragNDrop.SpringVelocityX) * 0.05
+  Action: Slime -> Set height to 64 + abs(Slime.DragNDrop.SpringVelocityY) * 0.05
+  // squash and stretch the body from the live spring velocity
+
+Event: On Touch end
+  Action: Slime (DragNDrop) -> Drop (Release)
+```
+
+Note: Reading SpringVelocityX and SpringVelocityY each tick drives a squash-and-stretch directly from the spring's motion, so the slime bulges in the direction it is being flung. A very low damping is what sells the gooey, overshooting wobble.
+
+### 30. Spring slingshot with a live trajectory preview
+
+**Scenario:** Pull a projectile back against a spring, see a predicted arc from the spring's live velocity while aiming, and launch it on release. (Orthodox)
+
+```text
+Event: On start of layout
+  Action: Projectile (DragNDrop) -> Set follow mode to Spring Physics
+  Action: Projectile (DragNDrop) -> Set spring stiffness 90 damping 4
+  // a soft, springy pull that lets the projectile lag well behind the cursor
+
+Event: On Left mouse button Clicked on Projectile
+  Action: Projectile (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Center on point
+Event: Projectile (DragNDrop) -> Is dragging
+  Action: Projectile (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+  Action: AimDot -> Set position to (Projectile.X + Projectile.DragNDrop.SpringVelocityX * 0.3, Projectile.Y + Projectile.DragNDrop.SpringVelocityY * 0.3)
+  // project the current spring velocity forward to preview the launch
+
+Event: On Left mouse button Released
+  Action: Projectile (DragNDrop) -> Drop (Release)
+Event: Projectile (DragNDrop) -> On dropped
+  Action: Projectile (Physics) -> Set velocity to (Self.DragNDrop.ThrowVelocityX * 1.5, Self.DragNDrop.ThrowVelocityY * 1.5)
+```
+
+Note: In spring mode the throw is the object's own velocity, so the trajectory you previewed from SpringVelocityX/Y matches what gets launched. The release ThrowVelocity equals the spring velocity at that instant, scaled here for extra punch.
+
+### 31. "Shaky hands" placement challenge
+
+**Scenario:** A status effect makes the cursor feel jittery and overshooting, so placing objects precisely becomes a deliberate challenge that can be toggled on and off. (Unorthodox)
+
+```text
+Event: On Left mouse button Clicked on Bomb
+  Action: Bomb (DragNDrop) -> Start drag at (Mouse.X, Mouse.Y) using Keep offset
+Event: Bomb (DragNDrop) -> Is dragging
+  Action: Bomb (DragNDrop) -> Set drag point to (Mouse.X, Mouse.Y)
+
+Event: On "Defuse" status applied
+  Action: Bomb (DragNDrop) -> Set follow mode to Spring Physics
+  Action: Bomb (DragNDrop) -> Set spring stiffness 260 damping 5
+  // nervous, overshooting hands: hard to place on the exact wire
+
+Event: On "Defuse" status cleared
+  Action: Bomb (DragNDrop) -> Set follow mode to Instant
+  // steady hands again: pixel-perfect snapping
+```
+
+Note: Switching the follow mode at runtime turns spring overshoot into a gameplay modifier. Set follow mode to Instant clears the spring's stored velocity, so the cursor stops dead the moment the steadying effect kicks in, with no leftover drift.
+
+### 32. Wrecking ball pendulum swing
+
+**Scenario:** Grab a heavy ball on a long spring, swing it back and forth to build momentum, and release to smash a wall with the carried speed. (Unorthodox)
+
+```text
+Event: On start of layout
+  Action: Ball (DragNDrop) -> Set follow mode to Spring Physics
+  Action: Ball (DragNDrop) -> Set spring stiffness 40 damping 2
+  // a very soft, barely-damped spring swings like a heavy pendulum
+
+Event: On Touch start on Ball
+  Action: Ball (DragNDrop) -> Start drag at (Ball.X, Ball.Y) using Center on point
+Event: Ball (DragNDrop) -> Is dragging
+  Action: Ball (DragNDrop) -> Set drag point to (Touch.X, Touch.Y)
+  // drag the anchor; the ball lags and swings under it
+
+Event: On Touch end
+  Action: Ball (DragNDrop) -> Drop (Release)
+Event: Ball (DragNDrop) -> On dropped
+  Action: Ball (Physics) -> Set velocity to (Self.DragNDrop.ThrowVelocityX, Self.DragNDrop.ThrowVelocityY)
+  // hand the swing's momentum straight to Physics for the smash
+```
+
+Note: With tiny stiffness and almost no damping the ball trails far behind the anchor and keeps swinging, so timing the release at the bottom of a swing delivers the most momentum. The measured throw is the ball's real velocity, so a well-timed swing hits much harder than a lazy one.
+
 ### Other game use cases
 
 - **Puzzle games:** Drag pieces into place, lock them to directions, and snap them home on drop.
@@ -1084,6 +1307,14 @@ Note: Overlap mode tests the cursor against each territory's collision shape, so
 - **Slingshot and launch games:** Pull back, release, and read ThrowSpeed and the throw components to launch a projectile.
 - **Inventory-heavy RPGs:** Dozens of draggable items sharing one configuration, each magnetising to slots and respecting direction locks.
 - **Sandbox toys and creativity apps:** Let players grab, arrange, and fling objects freely, with optional snapping to keep layouts tidy.
+- **Juice-heavy mobile and casual games:** Use Spring Physics so every drag bounces and settles, the kind of tactile, satisfying feel that makes a casual UI feel premium.
+- **Idle and clicker games:** Springy collectibles that overshoot and bounce into the bank, with the spring velocity feeding a little squash-and-stretch on arrival.
+- **Sports and aiming games:** Spring-tension shot meters where a golf swing, billiards cue, or basketball flick is pulled against a spring and released, with the measured spring velocity setting the power.
+- **Comedy and party games:** Deliberately loose, low-damping springs make objects hard to control for laughs, perfect for wobbly cooking, surgery, or "don't drop it" mini-games.
+- **Horror and atmosphere games:** A soft, overshooting spring drag makes a cursed or possessed object feel like it resists the player, dragging back and lurching unsettlingly.
+- **Character customisation:** Googly eyes, hats, and accessories that jiggle into place on a spring, reading SpringVelocityX/Y for a lively wobble as they settle.
+- **Educational physics:** Demonstrate harmonic motion, damping, and resonance live by dragging a mass on a spring and tuning stiffness and damping in front of students.
+- **Fighting and action games:** Spring-loaded charge moves where pulling back further and releasing at the right moment delivers a stronger, momentum-carried launch.
 
 ## 18. C3 Debugger
 
@@ -1097,7 +1328,12 @@ Drag N Drop exposes its live state in the Construct 3 debugger under a section n
 | `$dragPointY` | Current drag point Y. |
 | `$distanceFromPoint` | Live gap in pixels between the object and the drag point. |
 | `$directions` | Current direction lock mode. |
-| `$followSpeed` | Current follow speed cap in pixels per second. |
+| `$followSpeed` | Current follow speed cap in pixels per second (used in Constant Speed mode). |
+| `$followMode` | Current follow mode: `"instant"`, `"speed"`, or `"spring"`. |
+| `$springStiffness` | Current spring stiffness (used in Spring Physics mode). |
+| `$springDamping` | Current spring damping (used in Spring Physics mode). |
+| `$springVelX` | Live spring velocity X in pixels per second (Spring Physics mode). |
+| `$springVelY` | Live spring velocity Y in pixels per second (Spring Physics mode). |
 | `$breakDistance` | Current break distance (0 means disabled). |
 | `$snapRadius` | Current snap and magnet radius (0 means disabled in Radius mode). |
 | `$snapMode` | How snapping detects a target: `"radius"` or `"overlap"`. |
@@ -1106,7 +1342,7 @@ Drag N Drop exposes its live state in the Construct 3 debugger under a section n
 | `$throwVelocityX` | Measured throw velocity X (meaningful at drop time). |
 | `$throwVelocityY` | Measured throw velocity Y (meaningful at drop time). |
 
-The enabled, drag point, follow speed, break distance, snap radius, and magnet strength fields are editable in the debugger, so you can tune the feel of a drag while it is live without changing your events.
+The enabled, drag point, follow speed, follow mode, spring stiffness, spring damping, break distance, snap radius, and magnet strength fields are editable in the debugger, so you can tune the feel of a drag while it is live without changing your events. The spring velocity fields are read-only live state. Editing `$followMode` away from `spring` clears the spring velocity, the same as the Set follow mode action.
 
 ## 19. Scripting
 
@@ -1134,6 +1370,8 @@ drag.SetDragPoint(pointerX, pointerY);
 
 // options
 drag.SetFollowSpeed(600);
+drag.SetFollowMode(2);        // 0 = instant, 1 = speed, 2 = spring
+drag.SetSpring(200, 10);      // stiffness, damping (used in spring mode)
 drag.SetDirections(2);        // 0 = free, 1 = up_down, 2 = left_right, 3 = four_dir, 4 = eight_dir
 drag.SetBreakDistance(80, 0); // action: 0 = drop, 1 = cancel
 
@@ -1157,6 +1395,7 @@ Combo index maps for reference:
 
 - StartDrag grab mode: `["keep_offset", "center_on_point"]`
 - Drop how: `["release", "cancel"]`
+- SetFollowMode mode: `["instant", "speed", "spring"]`
 - SetDirections directions: `["free", "up_down", "left_right", "four_dir", "eight_dir"]`
 - SetBreakDistance action: `["drop", "cancel"]`
 - SetSnapMode mode: `["radius", "overlap"]`
@@ -1212,6 +1451,11 @@ Notes:
 - **Start Drag is ignored while already dragging.** To switch objects, call Drop on the current one first. There is no force-grab action by design.
 - **Drop is ignored when not dragging.** Guard your drop logic with Is dragging if you fire Drop from a broad event such as a global mouse-up.
 - **Follow speed is a pixels-per-second cap, not a percentage.** A value like 0.2 makes the object crawl. Use 0 for instant, or a value in the hundreds-to-thousands range for a responsive feel.
+- **Set the follow mode before relying on Follow Speed or Spring.** Follow Speed only acts in Constant Speed mode, and stiffness and damping only act in Spring Physics mode. Choose the mode with Set follow mode (or the panel) first; the value actions just tune it.
+- **Spring damping controls the bounce, not the speed.** For a lively bounce keep damping low; to remove overshoot raise it toward about 2 × √stiffness. If a spring oscillates forever it almost always means damping is far too low for the stiffness.
+- **Give break distance headroom in spring mode.** A bouncy spring overshoots, which momentarily spikes the gap to the drag point. A tight break distance can trip an auto-drop on the overshoot, so loosen it or raise damping when combining the two.
+- **Spring mode throws the object's velocity, not your hand speed.** On release the throw is the spring's own velocity, so a lagging springy object leaves slower than the cursor was moving. Read ThrowVelocityX/Y in On Dropped as usual; they already reflect this.
+- **Switching out of spring mode stops the coast.** Set follow mode to Instant or Constant Speed clears the stored spring velocity, so the object will not keep drifting from a previous bounce.
 - **Directions round the movement, not the grab offset.** 4 Directions and 8 Directions snap each tick's movement toward the cursor, so the object steps toward the pointer along clean axis or diagonal lines and still reaches it, rather than locking to a single ray.
 - **Snapping needs targets, plus a radius or overlap mode.** Register at least one Add snap position or Add snap object (a For each loop handles many at once). In Radius mode also set a snap radius above 0; Overlap mode works without one.
 - **Use Overlap snap mode to snap by the cursor, not the object.** Radius mode measures from the object, which lags under a slow follow speed. Overlap mode hit-tests the drag position against the target, so the piece snaps to whatever is under the cursor.

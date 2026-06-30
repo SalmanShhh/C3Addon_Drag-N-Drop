@@ -32,6 +32,23 @@
             "name": "Break Distance",
             "desc": "Gap to the drag point that auto-ends the drag. 0 disables it."
           },
+          "followMode": {
+            "name": "Follow Mode",
+            "desc": "How the object moves toward the drag point: Instant (snap), Constant Speed (uses Follow Speed), or Spring Physics (uses Spring Stiffness and Damping).",
+            "items": {
+              "instant": "Instant",
+              "speed": "Constant Speed",
+              "spring": "Spring Physics"
+            }
+          },
+          "springStiffness": {
+            "name": "Spring Stiffness",
+            "desc": "Spring acceleration coefficient (pixels/s^2 per pixel). 300 is a responsive, lively default. Only active when Follow Mode is Spring Physics."
+          },
+          "springDamping": {
+            "name": "Spring Damping",
+            "desc": "Velocity bleed-off per second that settles the bounce. 20 gives a gentle overshoot; ~2 * sqrt(stiffness) is critical damping (no overshoot). Only active when Follow Mode is Spring Physics."
+          },
           "enabled": {
             "name": "Enabled",
             "desc": "Whether the behaviour is active when the layout starts."
@@ -184,6 +201,22 @@
               }
             }
           },
+          "SetFollowMode": {
+            "list-name": "Set follow mode",
+            "display-text": "{my}: Set follow mode to {0}",
+            "description": "Switches how the object moves toward the drag point: Instant (snap each tick), Constant Speed (uses Follow Speed), or Spring Physics (uses Spring Stiffness and Damping).",
+            "params": {
+              "mode": {
+                "name": "Mode",
+                "desc": "Instant = snap each tick, Constant Speed = fixed pixels/second, Spring Physics = spring-damper acceleration.",
+                "items": {
+                  "instant": "Instant",
+                  "speed": "Constant Speed",
+                  "spring": "Spring Physics"
+                }
+              }
+            }
+          },
           "SetFollowSpeed": {
             "list-name": "Set follow speed",
             "display-text": "{my}: Set follow speed to {0}",
@@ -192,6 +225,21 @@
               "speed": {
                 "name": "Speed",
                 "desc": "Pixels per second. 0 means the object snaps to the drag point each tick."
+              }
+            }
+          },
+          "SetSpring": {
+            "list-name": "Set spring",
+            "display-text": "{my}: Set spring stiffness {0} damping {1}",
+            "description": "Sets the spring-physics parameters. Stiffness controls pull strength (pixels/s^2 per pixel of displacement); damping controls oscillation bleed-off (1/s). Does not switch the follow mode — use Set follow mode to Spring Physics first.",
+            "params": {
+              "stiffness": {
+                "name": "Stiffness",
+                "desc": "Spring acceleration in pixels/s^2 per pixel of displacement. 300 is responsive and lively; raise for a snappier feel."
+              },
+              "damping": {
+                "name": "Damping",
+                "desc": "Velocity bleed-off in 1/s. 20 gives a gentle overshoot; ~2*sqrt(stiffness) = critically damped; higher = overdamped."
               }
             }
           },
@@ -348,6 +396,16 @@
           "DistanceFromPoint": {
             "translated-name": "DistanceFromPoint",
             "description": "Current gap in pixels between the object and the drag point. Grows while blocked by a solid.",
+            "params": {}
+          },
+          "SpringVelocityX": {
+            "translated-name": "SpringVelocityX",
+            "description": "X component of the object's current spring velocity in pixels per second. Valid while Follow Mode is Spring Physics.",
+            "params": {}
+          },
+          "SpringVelocityY": {
+            "translated-name": "SpringVelocityY",
+            "description": "Y component of the object's current spring velocity in pixels per second. Valid while Follow Mode is Spring Physics.",
             "params": {}
           },
           "SnappedObjectUID": {
