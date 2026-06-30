@@ -1529,7 +1529,7 @@ Notes:
 
 ## 20. Integrating with Push-Out and Slide
 
-Drag N Drop never checks collisions: each tick it just sets the object's position to follow the drag point. The companion behaviour **Push-Out and Slide** does the opposite half of the job — it never moves the object on its own, it runs *after* movement and pushes the object back out of any solids it ended up overlapping, sliding it along them. Put both behaviours on the same object and you get dragging that respects walls: drag a piece around and it glides along obstacles and can never be pulled through them, with no collision code of your own.
+Drag N Drop never checks collisions: each tick it just sets the object's position to follow the drag point. The companion behaviour **Push-Out and Slide** does the opposite half of the job: it never moves the object on its own, it runs *after* movement and pushes the object back out of any solids it ended up overlapping, sliding it along them. Put both behaviours on the same object and you get dragging that respects walls: drag a piece around and it glides along obstacles and can never be pulled through them, with no collision code of your own.
 
 ### How they layer
 
@@ -1537,7 +1537,7 @@ Each tick, Drag N Drop moves the object toward the drag point (in whatever follo
 
 ### Use Swept resolution
 
-A drag can move the object a long way in a single tick — a fast cursor, or Instant follow mode snapping straight onto the drag point. A plain push-out only looks at the final position, so a quick flick across a thin wall can tunnel through or pop out the far side. Set Push-Out and Slide's **Resolution mode to Swept (continuous)**: it traces the path from the object's last resolved position to the new one and stops at the first wall, so the object always stays on the side it came from. This is the recommended pairing, and the same reason Swept mode exists for Construct's built-in Drag & Drop, which Drag N Drop replaces.
+A drag can move the object a long way in a single tick, whether from a fast cursor or Instant follow mode snapping straight onto the drag point. A plain push-out only looks at the final position, so a quick flick across a thin wall can tunnel through or pop out the far side. Set Push-Out and Slide's **Resolution mode to Swept (continuous)**: it traces the path from the object's last resolved position to the new one and stops at the first wall, so the object always stays on the side it came from. This is the recommended pairing, and the same reason Swept mode exists for Construct's built-in Drag & Drop, which Drag N Drop replaces.
 
 ```text
 Object setup (on the draggable Crate):
@@ -1563,7 +1563,7 @@ Event: On Left mouse button Released
 
 ### Gotchas
 
-- **Break distance fights the wall.** When Push-Out holds the object at a wall while the cursor keeps moving, the gap to the drag point grows — exactly what Break Distance watches. With both behaviours on, either leave Break Distance at 0 or set it generously, or a wall will auto-drop the object. The same applies to spring overshoot.
+- **Break distance fights the wall.** When Push-Out holds the object at a wall while the cursor keeps moving, the gap to the drag point grows, which is exactly what Break Distance watches. With both behaviours on, either leave Break Distance at 0 or set it generously, or a wall will auto-drop the object. The same applies to spring overshoot.
 - **Snapping still works.** Snap targets, magnetism, and On Snapped are unaffected: the object snaps on drop and Push-Out keeps it clear of solids.
 - **Throw is yours to apply.** On drop, Drag N Drop measures the throw (ThrowVelocityX/Y) but never moves the object. If you forward that velocity into your own movement, keep Push-Out and Slide enabled so the thrown object still respects walls.
 

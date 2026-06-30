@@ -9,7 +9,6 @@
 
 #### What's New in 1.4.1.0
 - **Added:** - Grid follow mode: fourth Follow Mode that snaps the dragged object to a tile grid, with a Set grid action and 4 grid panel properties (Cell Width/Height, Origin X/Y).
-- **Added:** -
 - **Changed:** - Grid movement folded into default placement: the _tick switch now handles Grid via the same direct placement as Instant (quantization moved earlier); Instant/Speed/Spring behavior unchanged.
 - **Fixed:** - Magnet in Grid mode: snap targets now pull a grid-dragged object off-grid; grid quantization runs before the magnet instead of overwriting it.
 - **Fixed:** - Snapping confirmed across all four modes: snap-on-drop, On Snapped, Is snapping, and SnapTarget all verified for Instant/Speed/Spring/Grid.
@@ -127,7 +126,6 @@ npm run dev
 
 **1.4.1.0**
 - **Added:** - Grid follow mode: fourth Follow Mode that snaps the dragged object to a tile grid, with a Set grid action and 4 grid panel properties (Cell Width/Height, Origin X/Y).
-- **Added:** -
 - **Changed:** - Grid movement folded into default placement: the _tick switch now handles Grid via the same direct placement as Instant (quantization moved earlier); Instant/Speed/Spring behavior unchanged.
 - **Fixed:** - Magnet in Grid mode: snap targets now pull a grid-dragged object off-grid; grid quantization runs before the magnet instead of overwriting it.
 - **Fixed:** - Snapping confirmed across all four modes: snap-on-drop, On Snapped, Is snapping, and SnapTarget all verified for Instant/Speed/Spring/Grid.
