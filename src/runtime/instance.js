@@ -284,8 +284,17 @@ export default function (parentClass) {
         targetY = this.instance.y + cdy;
       }
 
+      // Grid follow mode: quantize the target to the nearest tile-grid cell
+      // first, so the magnet below can still pull it off-grid toward a snap
+      // target. This keeps snapping working the same in every follow mode.
+      if (this._followMode === "grid") {
+        targetX = snapToGrid(targetX, this._gridW, this._gridOriginX);
+        targetY = snapToGrid(targetY, this._gridH, this._gridOriginY);
+      }
+
       // Magnet / homing: bias the target toward the nearest in-range snap point.
-      // The magnet is always distance-based, regardless of the snap mode.
+      // Always distance-based regardless of snap mode, and applied for every
+      // follow mode (including grid, after the quantization above).
       if (this._snapRadius > 0 && this._magnetStrength > 0 && this._hasSnapTargets()) {
         const near = this._findNearestSnap(targetX, targetY);
         if (near && near.dist <= this._snapRadius) {
@@ -331,14 +340,10 @@ export default function (parentClass) {
           }
           break;
         }
-        case "grid": {
-          // Snap the object to the nearest tile-grid cell each tick. A cell
-          // size of 0 on an axis leaves that axis free (no snapping).
-          this.instance.x = snapToGrid(targetX, this._gridW, this._gridOriginX);
-          this.instance.y = snapToGrid(targetY, this._gridH, this._gridOriginY);
-          break;
-        }
-        default: // "instant" — SDK v2 position setters invalidate the bounding box automatically.
+        // "instant" and "grid" both place the object directly on the resolved
+        // target (grid was already quantized above). SDK v2 position setters
+        // invalidate the bounding box automatically.
+        default:
           this.instance.x = targetX;
           this.instance.y = targetY;
           break;

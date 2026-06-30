@@ -1,11 +1,20 @@
 <img src="./src/icon.svg" width="100" /><br>
 # Drag N Drop
 <i>Event-driven drag & drop: you decide when a drag starts and stops, and the object follows a drag point you update each tick. A drop-in replacement for Construct 3's built-in Drag & Drop, driven through Start Drag / Drop / Set Drag Point actions so a controller, touch gesture, AI routine, or virtual cursor can all drive it. Optional solid push-out, axis lock, break distance, and automatic throw-velocity measurement.</i> <br>
-### Version 1.4.0.1
+### Version 1.4.1.0
 
-[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_Drag-N-Drop/releases/download/salmanshh_dragndrop-1.4.0.1.c3addon/salmanshh_dragndrop-1.4.0.1.c3addon)
+[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_Drag-N-Drop/releases/download/salmanshh_dragndrop-1.4.1.0.c3addon/salmanshh_dragndrop-1.4.1.0.c3addon)
 <br>
 <sub> [See all releases](https://github.com/SalmanShhh/C3Addon_Drag-N-Drop/releases) </sub> <br>
+
+#### What's New in 1.4.1.0
+- **Added:** - Grid follow mode: fourth Follow Mode that snaps the dragged object to a tile grid, with a Set grid action and 4 grid panel properties (Cell Width/Height, Origin X/Y).
+- **Added:** -
+- **Changed:** - Grid movement folded into default placement: the _tick switch now handles Grid via the same direct placement as Instant (quantization moved earlier); Instant/Speed/Spring behavior unchanged.
+- **Fixed:** - Magnet in Grid mode: snap targets now pull a grid-dragged object off-grid; grid quantization runs before the magnet instead of overwriting it.
+- **Fixed:** - Snapping confirmed across all four modes: snap-on-drop, On Snapped, Is snapping, and SnapTarget all verified for Instant/Speed/Spring/Grid.
+
+<sub>[View full changelog](#changelog)</sub>
 
 ---
 <b><u>Author:</u></b> SalmanShh <br>
@@ -115,6 +124,13 @@ npm run dev
 
 ---
 ## Changelog
+
+**1.4.1.0**
+- **Added:** - Grid follow mode: fourth Follow Mode that snaps the dragged object to a tile grid, with a Set grid action and 4 grid panel properties (Cell Width/Height, Origin X/Y).
+- **Added:** -
+- **Changed:** - Grid movement folded into default placement: the _tick switch now handles Grid via the same direct placement as Instant (quantization moved earlier); Instant/Speed/Spring behavior unchanged.
+- **Fixed:** - Magnet in Grid mode: snap targets now pull a grid-dragged object off-grid; grid quantization runs before the magnet instead of overwriting it.
+- **Fixed:** - Snapping confirmed across all four modes: snap-on-drop, On Snapped, Is snapping, and SnapTarget all verified for Instant/Speed/Spring/Grid.
 
 **1.4.0.1**
 
